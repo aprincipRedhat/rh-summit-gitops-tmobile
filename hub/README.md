@@ -14,6 +14,8 @@ This folder contains the hub cluster lifecycle:
 3. Day 2 GitOps bootstrap chart (`hub/day2/gitops/bootstrap`).
 4. Day 2 managed apps sync from `hub/day2/gitops/managed-applications`.
 
+Day 2 pipeline charts (Helm) live under `hub/day2/helm/`: `ztp-pipeline/`, `bulk-ztp-pipeline/`, `mirror-pipeline/`, plus `ocp-operators-policy/`. OpenShift GitOps `Application` manifests in `hub/day2/gitops/managed-applications/` set `spec.source.path` to those folders.
+
 ## Quick Commands
 
 ```bash

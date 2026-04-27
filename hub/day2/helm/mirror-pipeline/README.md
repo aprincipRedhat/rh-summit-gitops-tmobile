@@ -6,10 +6,15 @@ Creates the Tekton `oc mirror` pipeline and RBAC in `openshift-pipelines`.
 
 ## Inputs
 
-- Runner image from `hub/day2/images/oc-mirror`
+- Runner image: build from [hub/day2/images/oc-mirror](../../images/oc-mirror) (directory relative to this chart: `../../images/oc-mirror`).
 - `imageset` workspace (ConfigMap input)
 - `registry-auth` workspace (dockerconfig secret)
 - Hub values under `tektonMirror.*`
+
+## Repository layout
+
+- Chart directory: `hub/day2/helm/mirror-pipeline/`.
+- OpenShift GitOps: [application-tekton-mirror.yaml](../../gitops/managed-applications/application-tekton-mirror.yaml) — `path: hub/day2/helm/mirror-pipeline`, `releaseName: tekton-mirror-pipeline`.
 
 ## Apply
 

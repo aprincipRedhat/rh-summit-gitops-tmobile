@@ -31,6 +31,8 @@ helm template tekton-bulk-ztp-pipeline ./hub/day2/helm/bulk-ztp-pipeline -f hub/
 helm template tekton-mirror-pipeline ./hub/day2/helm/mirror-pipeline -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
 
+The first argument to `helm template` is the **release name**. The values above match `spec.source.helm.releaseName` in [gitops/managed-applications/application-tekton-*.yaml](gitops/managed-applications/) so local renders align with OpenShift GitOps. Swap `dev-hub-east-1.yaml` for your hub file under `hub/hub-values/<env>/<site>/hub-values/<hub>.yaml`.
+
 ## Next
 
 - GitOps details: `gitops/README.md`

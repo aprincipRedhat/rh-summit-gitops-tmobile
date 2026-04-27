@@ -14,6 +14,12 @@ Creates a bulk Tekton pipeline that:
 - Hub values: `tektonBulkZtp.*`
 - Target pipeline usually `ztp-cluster-render-pr`
 
+## Repository layout
+
+- Chart directory: `hub/day2/helm/bulk-ztp-pipeline/`.
+- Hub values: `hub/hub-values/.../<hub>.yaml` (same `-f ../../../hub-values/...` pattern as other Day 2 charts).
+- OpenShift GitOps: [application-tekton-bulk-ztp.yaml](../../gitops/managed-applications/application-tekton-bulk-ztp.yaml) — `path: hub/day2/helm/bulk-ztp-pipeline`, `releaseName: tekton-bulk-ztp-pipeline`.
+
 ## Apply
 
 ```bash

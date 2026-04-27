@@ -12,7 +12,7 @@ Renders hub-side spoke provisioning resources:
 
 - No chart-local `values.yaml`.
 - Inputs come from `**/pipeline-values/<cluster>.yaml`.
-- Usually rendered by Day 2 ZTP pipeline.
+- Usually rendered by the hub chart [hub/day2/helm/ztp-pipeline](../../../../hub/day2/helm/ztp-pipeline/README.md) (OpenShift GitOps app `app-tekton-ztp`, `path: hub/day2/helm/ztp-pipeline`).
 
 ## Local Render
 

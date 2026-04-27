@@ -14,6 +14,11 @@ Uses shared hub values file (`hub/hub-values/.../<hub>.yaml`) with:
 - `operators.openshiftPipelines.*`
 - `operators.openshiftGitOps.*`
 
+## Repository layout
+
+- Chart directory: `hub/day2/helm/ocp-operators-policy/`.
+- OpenShift GitOps: [application-ocp-operators-policy.yaml](../../gitops/managed-applications/application-ocp-operators-policy.yaml) — `path: hub/day2/helm/ocp-operators-policy`, `releaseName: ocp-operators-policy`.
+
 ## Apply
 
 ```bash
