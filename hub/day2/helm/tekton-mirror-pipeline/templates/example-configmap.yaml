@@ -1,0 +1,25 @@
+{{- if .Values.exampleConfigMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.rbac.configMapName }}
+  namespace: {{ .Values.namespace }}
+binaryData: {}
+data:
+  {{ .Values.imagesetConfigMapKey }}: |
+    kind: ImageSetConfiguration
+    apiVersion: mirror.openshift.io/v1alpha2
+    storageConfig:
+      registry:
+        imageURL: placeholder.example/oc-mirror-metadata
+        skipTLS: true
+    mirror:
+      platform:
+        architectures:
+          - amd64
+        channels:
+          - name: stable-4.16
+            type: ocp
+            minVersion: 4.16.0
+            maxVersion: 4.16.0
+{{- end }}

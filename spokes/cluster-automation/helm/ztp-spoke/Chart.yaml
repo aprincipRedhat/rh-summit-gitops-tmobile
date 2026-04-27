@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ztp-spoke
+description: Hub-side SiteConfig manifests (ClusterInstance skeleton + namespace)
+type: application
+version: 0.1.0
+appVersion: "2.15"

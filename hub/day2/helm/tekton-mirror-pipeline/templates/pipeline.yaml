@@ -1,0 +1,128 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.pipeline.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  description: Mirror images with oc mirror using ImageSetConfiguration from a ConfigMap and registry auth from a Secret.
+  params:
+    - name: dest-registry
+      type: string
+      description: "Target registry (with or without docker:// prefix), e.g. registry.example.com:5000/ocp-mirror"
+    - name: extra-flags
+      type: string
+      default: ""
+      description: Extra arguments passed to oc mirror (e.g. --dry-run)
+  workspaces:
+    - name: imageset
+      description: ConfigMap workspace containing ImageSetConfiguration YAML
+    - name: registry-auth
+      description: Secret workspace with .dockerconfigjson for source/destination registries
+  tasks:
+    - name: oc-mirror
+      params:
+        - name: dest-registry
+          value: $(params.dest-registry)
+        - name: extra-flags
+          value: $(params.extra-flags)
+      workspaces:
+        - name: imageset
+          workspace: imageset
+        - name: registry-auth
+          workspace: registry-auth
+      taskSpec:
+        params:
+          - name: dest-registry
+          - name: extra-flags
+            default: ""
+        workspaces:
+          - name: imageset
+          - name: registry-auth
+        volumes:
+          - name: mirror-output
+            emptyDir: {}
+        steps:
+          - name: mirror
+            image: {{ .Values.pipeline.mirrorImage | quote }}
+            volumeMounts:
+              - name: mirror-output
+                mountPath: /mirror-out
+            env:
+              - name: PARAM_DEST_REGISTRY
+                value: $(params.dest-registry)
+              - name: PARAM_EXTRA_FLAGS
+                value: $(params.extra-flags)
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              export HOME=/tmp/tekton-home
+              mkdir -p "${HOME}/.docker"
+              AUTH_DIR="$(workspaces.registry-auth.path)"
+              if [[ -f "${AUTH_DIR}/.dockerconfigjson" ]]; then
+                cp "${AUTH_DIR}/.dockerconfigjson" "${HOME}/.docker/config.json"
+              elif [[ -f "${AUTH_DIR}/config.json" ]]; then
+                cp "${AUTH_DIR}/config.json" "${HOME}/.docker/config.json"
+              else
+                echo "Expected .dockerconfigjson or config.json in registry-auth workspace" >&2
+                ls -la "${AUTH_DIR}" >&2 || true
+                exit 1
+              fi
+              export DOCKER_CONFIG="${HOME}/.docker"
+              IS_DIR="$(workspaces.imageset.path)"
+              KEY="{{ .Values.imagesetConfigMapKey }}"
+              SRC="${IS_DIR}/${KEY}"
+              if [[ ! -f "${SRC}" ]]; then
+                SRC="$(find "${IS_DIR}" -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | head -1)"
+              fi
+              if [[ -z "${SRC}" || ! -f "${SRC}" ]]; then
+                echo "No ImageSetConfiguration file found in imageset workspace" >&2
+                exit 1
+              fi
+              mkdir -p /tmp/mirror-work
+              cp "${SRC}" /tmp/mirror-work/imageset.yaml
+              REG="${PARAM_DEST_REGISTRY}"
+              case "${REG}" in
+                docker://*) DEST="${REG}" ;;
+                *) DEST="docker://${REG}" ;;
+              esac
+              mkdir -p /mirror-out
+              cd /mirror-out
+              set -x
+              oc version --client
+              oc-mirror version
+              oc mirror ${PARAM_EXTRA_FLAGS} --config /tmp/mirror-work/imageset.yaml "${DEST}"
+          - name: emit-mirror-artifacts
+            image: {{ .Values.pipeline.mirrorImage | quote }}
+            volumeMounts:
+              - name: mirror-output
+                mountPath: /mirror-out
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              echo "=== oc mirror output under /mirror-out (copy from logs into Git or oc apply) ==="
+              if [[ ! -d /mirror-out ]]; then
+                echo "No /mirror-out volume mount." >&2
+                exit 0
+              fi
+              cd /mirror-out
+              find . -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort | head -200 || true
+              echo ""
+              echo "=== YAML declaring ImageDigestMirrorSet / ImageTagMirrorSet ==="
+              find . -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | while read -r f; do
+                if grep -qE '^kind: (ImageDigestMirrorSet|ImageTagMirrorSet)' "$f" 2>/dev/null; then
+                  echo "--- ${f} ---"
+                  cat "$f"
+                  echo ""
+                fi
+              done || true
+              echo "=== Files with idms/itms in path (oc-mirror v2 style) ==="
+              find . -type f \( -iname '*idms*' -o -iname '*itms*' \) 2>/dev/null | while read -r f; do
+                echo "--- ${f} ---"
+                cat "$f"
+                echo ""
+              done || true

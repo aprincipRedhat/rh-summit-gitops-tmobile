@@ -1,0 +1,46 @@
+{{- if .Values.pipelineRun.example.enabled }}
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: {{ .Values.pipelineRun.example.generateName | quote }}
+  namespace: {{ .Values.namespace }}
+spec:
+  pipelineRef:
+    name: {{ .Values.pipeline.name }}
+  taskRunTemplate:
+    serviceAccountName: {{ .Values.serviceAccount.name }}
+  podTemplate:
+    securityContext:
+      fsGroup: 65532
+  params:
+    - name: cluster-name
+      value: {{ .Values.pipelineRun.example.clusterName | quote }}
+    - name: gitops-repo-url
+      value: {{ .Values.pipelineRun.example.gitopsRepoUrl | quote }}
+    - name: git-revision
+      value: {{ .Values.pipelineRun.example.gitRevision | quote }}
+    - name: git-base-branch
+      value: {{ .Values.pipelineRun.example.gitBaseBranch | quote }}
+    - name: github-repo-slug
+      value: {{ .Values.pipelineRun.example.githubRepoSlug | quote }}
+    - name: ztp-chart-relative-path
+      value: {{ .Values.pipelineRun.example.ztpChartRelativePath | quote }}
+    - name: manifest-output-dir
+      value: {{ .Values.pipelineRun.example.manifestOutputDir | quote }}
+    - name: skip-ansible
+      value: {{ .Values.pipelineRun.example.skipAnsible | quote }}
+    - name: ansible-tags
+      value: {{ .Values.pipelineRun.example.ansibleTags | quote }}
+    - name: pr-title-prefix-modify
+      value: {{ .Values.pipelineRun.example.prTitlePrefixModify | quote }}
+  workspaces:
+    - name: shared
+      volumeClaimTemplate:
+        metadata:
+          name: ztp-shared-pvc
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+{{- end }}

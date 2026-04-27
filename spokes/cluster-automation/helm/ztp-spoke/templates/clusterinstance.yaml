@@ -1,0 +1,35 @@
+apiVersion: siteconfig.open-cluster-management.io/v1alpha1
+kind: ClusterInstance
+metadata:
+  name: {{ .Values.cluster.name }}
+  namespace: {{ .Values.cluster.namespace }}
+  labels:
+    cluster.open-cluster-management.io/siteconfig: {{ .Values.cluster.name | quote }}
+  {{- with .Values.extraAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterName: {{ .Values.cluster.name | quote }}
+  pullSecretRef:
+    name: {{ .Values.pullSecretRef.name | quote }}
+  {{- with .Values.extraLabels }}
+  extraLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.extraAnnotations }}
+  extraAnnotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.templateRefs }}
+  templateRefs:
+    {{- toYaml .Values.templateRefs | nindent 4 }}
+  {{- end }}
+  {{- if .Values.nodes }}
+  nodes:
+    {{- toYaml .Values.nodes | nindent 4 }}
+  {{- end }}
+  {{- if .Values.extraManifestsRefs }}
+  extraManifestsRefs:
+    {{- toYaml .Values.extraManifestsRefs | nindent 4 }}
+  {{- end }}

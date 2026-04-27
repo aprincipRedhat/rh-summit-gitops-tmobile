@@ -1,0 +1,26 @@
+# Syncs ACM PolicyGenerator policies (Kustomize) into the policies namespace on the hub.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-acm-policies
+  namespace: openshift-gitops
+  labels:
+    summit.redhat.com/day2: "true"
+    summit.redhat.com/component: summit-policies
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    targetRevision: main
+    path: spokes/policies
+    kustomize: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: policies
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

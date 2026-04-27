@@ -1,0 +1,41 @@
+namespace: openshift-pipelines
+createNamespace: false
+
+serviceAccount:
+  name: pipeline-bulk-ztp
+
+images:
+  cli: quay.io/openshift/origin-cli:4.15
+
+pipeline:
+  name: bulk-ztp-managed-clusters
+
+target:
+  pipelineName: ztp-cluster-render-pr
+  pipelineNamespace: openshift-pipelines
+
+bulk:
+  maxConcurrent: 3
+  excludeManagedClusters: local-cluster
+  managedClusterLabelSelector: ""
+  childServiceAccountName: pipeline-ztp-gitops
+  childWaitTimeoutSeconds: "7200"
+
+childDefaults:
+  gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+  gitRevision: main
+  gitBaseBranch: main
+  githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+  ztpChartRelativePath: spokes/cluster-automation/helm/ztp-spoke
+  manifestOutputDir: spokes/clusters
+  skipAnsible: "true"
+  ansibleTags: dns,ping
+  gitUserName: ZTP OCP Pipelines
+  gitUserEmail: ztp-tekton@local
+  prTitlePrefix: "Add cluster"
+  prTitlePrefixModify: "Update cluster"
+
+pipelineRun:
+  example:
+    enabled: false
+    generateName: bulk-ztp-demo-

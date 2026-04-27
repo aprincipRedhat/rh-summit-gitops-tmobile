@@ -1,0 +1,48 @@
+ztpCommon:
+  enabled: true
+  namespace: ztp-common
+
+clusterValues:
+  data:
+    etcdBackupSchedule: "0 */12 * * *"
+    operatorSubscriptionChannel: stable
+    operatorStartingCSV: openshift-pipelines-operator-rh.v1.19.0
+    operatorInstallPlanApproval: Manual
+    operatorApprovedCsvs: |
+      - openshift-pipelines-operator-rh.v1.19.0
+
+cluster:
+  name: prod-east-us-1
+  namespace: prod-east-us-1
+
+pullSecretRef:
+  name: pull-secret
+
+bmcSecretRef:
+  name: bmc-prod-east-us-1
+
+templateRefs:
+  - name: example-sno-template
+    namespace: openshift-siteconfig
+
+nodes:
+  - hostname: master-0
+    role: master
+    nodeNetwork:
+      interfaces:
+        - name: eno1
+          macAddress: "aa:bb:cc:dd:ee:02"
+    rootDeviceHints:
+      deviceName: /dev/disk/by-id/scsi-0000
+    bmcAddress: redfish-virtualmedia://192.168.30.11/redfish/v1/Systems/1
+    bmcCredentialsName:
+      name: bmc-prod-east-us-1
+
+extraManifestsRefs: []
+
+extraLabels:
+  ManagedCluster:
+    common: "true"
+    ztp-demo: "true"
+
+extraAnnotations: {}

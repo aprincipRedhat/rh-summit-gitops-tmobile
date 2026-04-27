@@ -1,0 +1,21 @@
+# App-of-apps: this Application watches managed-applications/ (Kustomize) so every child
+# Application manifest in Git is applied by OpenShift GitOps on the hub.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.rootApp.name }}
+  namespace: openshift-gitops
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: {{ .Values.rootApp.sourcePath | quote }}
+    kustomize: {}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

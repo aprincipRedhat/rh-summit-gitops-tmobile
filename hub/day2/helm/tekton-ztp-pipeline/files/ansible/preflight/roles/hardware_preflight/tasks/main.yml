@@ -1,0 +1,12 @@
+---
+- name: Redfish preliminary checks
+  ansible.builtin.include_tasks: redfish_prelim.yml
+  tags: [hardware, bmc, redfish]
+
+- name: RAID configuration (skeleton)
+  ansible.builtin.include_tasks: raid_config.yml
+  tags: [hardware, bmc, raid]
+
+- name: BMC / entitlement license check (skeleton)
+  ansible.builtin.include_tasks: license_check.yml
+  tags: [hardware, bmc, license]

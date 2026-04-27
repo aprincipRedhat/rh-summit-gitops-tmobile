@@ -1,0 +1,25 @@
+namespace: openshift-pipelines
+createNamespace: false
+
+pipeline:
+  name: ocp-registry-mirror
+  mirrorImage: quay.io/example/oc-mirror-runner:latest
+
+serviceAccount:
+  name: pipeline-oc-mirror
+
+rbac:
+  configMapName: mirror-imageset-configuration
+  secretName: mirror-registry-pullsecret
+
+imagesetConfigMapKey: ImageSetConfiguration.yaml
+
+exampleConfigMap:
+  enabled: true
+
+pipelineRun:
+  example:
+    enabled: true
+    generateName: ocp-registry-mirror-demo-
+    destRegistry: docker://registry.example.com:5000/ocp-mirror
+    extraFlags: ""

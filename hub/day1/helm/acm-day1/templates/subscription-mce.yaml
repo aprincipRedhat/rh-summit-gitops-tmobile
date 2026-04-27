@@ -1,0 +1,14 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.mce.subscription.name }}
+  namespace: {{ .Values.mce.namespace }}
+spec:
+  channel: {{ .Values.mce.subscription.channel | quote }}
+  installPlanApproval: {{ .Values.mce.subscription.installPlanApproval }}
+  name: multicluster-engine
+  source: {{ .Values.mce.subscription.source | quote }}
+  sourceNamespace: {{ .Values.mce.subscription.sourceNamespace | quote }}
+  {{- with .Values.mce.subscription.startingCSV }}
+  startingCSV: {{ . | quote }}
+  {{- end }}

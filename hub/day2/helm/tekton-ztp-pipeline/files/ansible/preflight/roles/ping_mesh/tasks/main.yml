@@ -1,0 +1,12 @@
+---
+- name: Ping targets from inventory (when ansible_host is set)
+  ansible.builtin.command: "ping -c 1 -W 2 {{ ansible_host }}"
+  register: ping_r
+  changed_when: false
+  failed_when: false
+  when: ansible_host is defined and ansible_host | length > 0
+
+- name: Ping result
+  ansible.builtin.debug:
+    msg: "ping {{ ansible_host }} rc={{ ping_r.rc | default('n/a') }}"
+  when: ansible_host is defined

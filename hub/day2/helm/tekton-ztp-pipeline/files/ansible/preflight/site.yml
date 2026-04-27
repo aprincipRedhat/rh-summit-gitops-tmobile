@@ -1,0 +1,14 @@
+---
+- name: ZTP preflight checks
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    dns_automation_enabled: false
+  roles:
+    - role: hardware_preflight
+      tags: [hardware, bmc]
+    - role: dns_check
+      tags: [dns]
+    - role: ping_mesh
+      tags: [ping]

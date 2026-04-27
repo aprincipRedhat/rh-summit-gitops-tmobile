@@ -1,0 +1,15 @@
+object-templates-raw: |
+  - complianceType: musthave
+    objectDefinition:
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: openshift-pipelines-operator
+        namespace: openshift-operators
+      spec:
+        channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operatorSubscriptionChannel" hub}}'
+        installPlanApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operatorInstallPlanApproval" hub}}'
+        name: openshift-pipelines-operator-rh
+        source: redhat-operators
+        sourceNamespace: openshift-marketplace
+        startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operatorStartingCSV" hub}}'

@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-tekton" .Values.serviceAccount.name }}
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["create", "get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines"]
+    verbs: ["get"]

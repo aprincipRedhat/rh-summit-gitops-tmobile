@@ -1,0 +1,16 @@
+# Bootstrap chart values: Git repo + paths only. OpenShift GitOps Application / ApplicationSet
+# objects are always created in openshift-gitops and use AppProject "default" with destination
+# server https://kubernetes.default.svc (in-cluster).
+repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+targetRevision: main
+
+# ApplicationSet: git directory generator — one Application per subdirectory under this path.
+clustersPath: spokes/clusters
+
+rootApp:
+  name: root-day2-applications
+  # Kustomize root synced by the root Application (child Application manifests live here).
+  sourcePath: hub/day2/gitops/managed-applications
+
+applicationSet:
+  name: ztp-clusters-git

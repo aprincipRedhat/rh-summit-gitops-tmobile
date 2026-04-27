@@ -1,0 +1,12 @@
+---
+- name: DNS automation disabled (default)
+  ansible.builtin.debug:
+    msg: >-
+      Set dns_automation_enabled=true and implement module calls (e.g. community.aws.route53)
+      when your pipeline should create records. Until then this task is informational only.
+  when: not (dns_automation_enabled | default(false) | bool)
+
+- name: Optional forward DNS lookup for API VIP (example)
+  ansible.builtin.debug:
+    msg: "Would validate/create DNS for {{ cluster_name | default('unset') }}.{{ base_domain | default('example.com') }}"
+  when: dns_automation_enabled | default(false) | bool

@@ -1,0 +1,29 @@
+# Deploys the image mirror OCP Pipelines Helm chart to openshift-pipelines.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-tekton-mirror
+  namespace: openshift-gitops
+  labels:
+    summit.redhat.com/day2: "true"
+    summit.redhat.com/component: tekton-mirror
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    targetRevision: main
+    path: hub/day2/helm/tekton-mirror-pipeline
+    helm:
+      releaseName: tekton-mirror-pipeline
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

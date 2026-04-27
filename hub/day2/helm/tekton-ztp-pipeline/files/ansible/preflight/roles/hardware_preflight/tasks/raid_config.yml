@@ -1,0 +1,6 @@
+---
+- name: RAID / storage preflight (placeholder)
+  ansible.builtin.debug:
+    msg: >-
+      Add Redfish StorageController / VirtualDisk tasks or vendor collections here.
+      Run with --tags raid when bmc_address and storage policy are defined.

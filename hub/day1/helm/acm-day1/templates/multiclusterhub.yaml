@@ -1,0 +1,9 @@
+{{- if .Values.multiClusterHub.enabled }}
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: {{ .Values.multiClusterHub.name }}
+  namespace: {{ .Values.acm.namespace }}
+spec:
+  {{- toYaml .Values.multiClusterHub.spec | nindent 2 }}
+{{- end }}

@@ -1,0 +1,23 @@
+{{- if .Values.pipelineRun.example.enabled }}
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: {{ .Values.pipelineRun.example.generateName | quote }}
+  namespace: {{ .Values.namespace }}
+spec:
+  pipelineRef:
+    name: {{ .Values.pipeline.name }}
+  taskRunTemplate:
+    serviceAccountName: {{ .Values.serviceAccount.name }}
+  params:
+    - name: max-concurrent
+      value: {{ .Values.bulk.maxConcurrent | toString | quote }}
+    - name: exclude-managed-clusters
+      value: {{ .Values.bulk.excludeManagedClusters | quote }}
+    - name: managed-cluster-label-selector
+      value: {{ .Values.bulk.managedClusterLabelSelector | quote }}
+    - name: child-gitops-repo-url
+      value: {{ .Values.childDefaults.gitopsRepoUrl | quote }}
+    - name: child-github-repo-slug
+      value: {{ .Values.childDefaults.githubRepoSlug | quote }}
+{{- end }}
