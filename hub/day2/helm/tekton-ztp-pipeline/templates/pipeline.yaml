@@ -1,8 +1,8 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ .Values.pipeline.name }}
-  namespace: {{ .Values.namespace }}
+  name: {{ .Values.tektonZtp.pipeline.name }}
+  namespace: openshift-pipelines
 spec:
   description: >-
     Clone GitOps repo, run Ansible preflight from chart-bundled ConfigMap, resolve **/pipeline-values/<cluster-name>.yaml in the repo,
@@ -66,7 +66,7 @@ spec:
           - name: git-revision
         steps:
           - name: clone
-            image: {{ .Values.images.git | quote }}
+            image: {{ .Values.tektonZtp.images.git | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -88,7 +88,7 @@ spec:
         volumes:
           - name: ansible-preflight-bundle
             configMap:
-              name: {{ .Values.ansible.preflightConfigMapName | quote }}
+              name: {{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}
         workspaces:
           - name: shared
         params:
@@ -96,7 +96,7 @@ spec:
           - name: ansible-tags
         steps:
           - name: run-ansible
-            image: {{ .Values.images.ansible | quote }}
+            image: {{ .Values.tektonZtp.images.ansible | quote }}
             volumeMounts:
               - name: ansible-preflight-bundle
                 mountPath: /ansible-cm
@@ -151,7 +151,7 @@ spec:
           - name: manifest-output-dir
         steps:
           - name: helm
-            image: {{ .Values.images.helm | quote }}
+            image: {{ .Values.tektonZtp.images.helm | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -221,13 +221,13 @@ spec:
           - name: pr-title-prefix-modify
         steps:
           - name: push-and-pr
-            image: {{ .Values.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.github.secretName }}
-                    key: {{ .Values.github.secretKey }}
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
             script: |
               #!/bin/sh
               set -eu

@@ -7,7 +7,7 @@ Installs an **OpenShift Pipelines** (**OCP Pipelines**) **Pipeline** in **`opens
 
 ## Prerequisites
 
-1. Build and push the runner image from [images/oc-mirror](../../images/oc-mirror) and set `values.yaml` → `pipeline.mirrorImage`.
+1. Build and push the runner image from [images/oc-mirror](../../images/oc-mirror) and set hub values `tektonMirror.pipeline.mirrorImage`.
 2. Create a **pull/push registry secret** (same namespace as the pipeline):
 
    ```bash
@@ -23,7 +23,7 @@ Installs an **OpenShift Pipelines** (**OCP Pipelines**) **Pipeline** in **`opens
 ## Apply
 
 ```bash
-helm template tekton-mirror . -f values.yaml | oc apply -f -
+helm template tekton-mirror . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
 
 ## Run

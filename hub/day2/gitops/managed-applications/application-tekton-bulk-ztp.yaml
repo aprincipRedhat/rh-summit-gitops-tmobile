@@ -16,7 +16,7 @@ spec:
     helm:
       releaseName: tekton-bulk-ztp-pipeline
       valueFiles:
-        - values.yaml
+        - ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-pipelines

@@ -1,12 +1,12 @@
-{{- if .Values.exampleConfigMap.enabled }}
+{{- if .Values.tektonMirror.exampleConfigMap.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.rbac.configMapName }}
-  namespace: {{ .Values.namespace }}
+  name: {{ .Values.tektonMirror.rbac.configMapName }}
+  namespace: openshift-pipelines
 binaryData: {}
 data:
-  {{ .Values.imagesetConfigMapKey }}: |
+  {{ .Values.tektonMirror.imagesetConfigMapKey }}: |
     kind: ImageSetConfiguration
     apiVersion: mirror.openshift.io/v1alpha2
     storageConfig:

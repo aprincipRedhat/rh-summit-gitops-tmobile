@@ -19,12 +19,12 @@ The bulk task pod uses in-cluster **`oc`** credentials (pipeline SA); it does no
 ## Apply
 
 ```bash
-helm template tekton-bulk-ztp . -f values.yaml | oc apply -f -
+helm template tekton-bulk-ztp . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
 
 ## Example PipelineRun
 
-Set `pipelineRun.example.enabled: true` in `values.yaml` only on lab clusters (same caveat as other OCP Pipelines examples).
+Set `tektonBulkZtp.pipelineRun.example.enabled: true` in the hub values file only on lab clusters (same caveat as other OCP Pipelines examples).
 
 ## Parameters
 

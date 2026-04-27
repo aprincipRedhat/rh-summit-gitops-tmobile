@@ -12,19 +12,19 @@ Example layout: [`spokes/pipeline-values/`](../../../../spokes/pipeline-values/R
 
 ## Prerequisites
 
-- **Secret** `github-tekton-token` (name configurable in `values.yaml`) in **`openshift-pipelines`**, key `token`, containing a GitHub PAT with `contents:write` and `pull_requests:write` (or fine-grained equivalent).
+- **Secret** `github-tekton-token` (from hub values key `tektonZtp.github.secretName`) in **`openshift-pipelines`**, key `token`, containing a GitHub PAT with `contents:write` and `pull_requests:write` (or fine-grained equivalent).
 - GitOps repo clone URL must be **`https://github.com/<org>/<repo>.git`** for the embedded token remote rewrite.
 - Repo layout must include **`spokes/cluster-automation/helm/ztp-spoke`** (or override `ztp-chart-relative-path`) and the pipeline-values file for the cluster on the branch being cloned. The GitOps repo does **not** need a separate `hub/day2/ansible` tree.
 
 ## Apply
 
 ```bash
-helm template tekton-ztp . -f values.yaml | oc apply -f -
+helm template tekton-ztp . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
 
 ## Example PipelineRun
 
-Set `pipelineRun.example.enabled: true` in `values.yaml` only on lab clusters (requires real GitHub token + repo). Ensure the example **`clusterName`** has a matching `**/pipeline-values/<name>.yaml` on **`gitRevision`**.
+Set `tektonZtp.pipelineRun.example.enabled: true` in the hub values file only on lab clusters (requires real GitHub token + repo). Ensure the example **`clusterName`** has a matching `**/pipeline-values/<name>.yaml` on **`gitRevision`**.
 
 ## RBAC
 

@@ -23,5 +23,5 @@ Everything else is statically set in templates.
 ## Apply
 
 ```bash
-helm template ocp-operators-policy . -f values.yaml | oc apply -f -
+helm template ocp-operators-policy . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```

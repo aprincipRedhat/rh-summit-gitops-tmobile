@@ -1,24 +1,24 @@
-{{- if .Values.pipelineRun.example.enabled }}
+{{- if .Values.tektonMirror.pipelineRun.example.enabled }}
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: {{ .Values.pipelineRun.example.generateName | quote }}
-  namespace: {{ .Values.namespace }}
+  generateName: {{ .Values.tektonMirror.pipelineRun.example.generateName | quote }}
+  namespace: openshift-pipelines
 spec:
   pipelineRef:
-    name: {{ .Values.pipeline.name }}
+    name: {{ .Values.tektonMirror.pipeline.name }}
   taskRunTemplate:
-    serviceAccountName: {{ .Values.serviceAccount.name }}
+    serviceAccountName: {{ .Values.tektonMirror.serviceAccount.name }}
   params:
     - name: dest-registry
-      value: {{ .Values.pipelineRun.example.destRegistry | quote }}
+      value: {{ .Values.tektonMirror.pipelineRun.example.destRegistry | quote }}
     - name: extra-flags
-      value: {{ .Values.pipelineRun.example.extraFlags | quote }}
+      value: {{ .Values.tektonMirror.pipelineRun.example.extraFlags | quote }}
   workspaces:
     - name: imageset
       configMap:
-        name: {{ .Values.rbac.configMapName }}
+        name: {{ .Values.tektonMirror.rbac.configMapName }}
     - name: registry-auth
       secret:
-        secretName: {{ .Values.rbac.secretName }}
+        secretName: {{ .Values.tektonMirror.rbac.secretName }}
 {{- end }}

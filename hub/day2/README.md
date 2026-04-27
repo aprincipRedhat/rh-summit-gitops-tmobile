@@ -52,13 +52,13 @@ Default **ApplicationSet** watches **`spokes/clusters/*`** in Git; the root **Ap
 
 helm template argocd-bootstrap ./hub/day2/gitops/bootstrap -f hub/day2/gitops/bootstrap/values.yaml | oc apply -f -
 
-helm template ocp-operators-policy ./hub/day2/helm/ocp-operators-policy -f hub/day2/helm/ocp-operators-policy/values.yaml -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
+helm template ocp-operators-policy ./hub/day2/helm/ocp-operators-policy -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 
-helm template tekton-mirror ./hub/day2/helm/tekton-mirror-pipeline -f hub/day2/helm/tekton-mirror-pipeline/values.yaml | oc apply -f -
+helm template tekton-mirror ./hub/day2/helm/tekton-mirror-pipeline -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 
-helm template tekton-bulk-ztp ./hub/day2/helm/tekton-bulk-ztp-pipeline -f hub/day2/helm/tekton-bulk-ztp-pipeline/values.yaml | oc apply -f -
+helm template tekton-bulk-ztp ./hub/day2/helm/tekton-bulk-ztp-pipeline -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 
-helm template tekton-ztp ./hub/day2/helm/tekton-ztp-pipeline -f hub/day2/helm/tekton-ztp-pipeline/values.yaml | oc apply -f -
+helm template tekton-ztp ./hub/day2/helm/tekton-ztp-pipeline -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 
 ```
 

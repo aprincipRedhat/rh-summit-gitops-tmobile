@@ -1,8 +1,8 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ .Values.pipeline.name }}
-  namespace: {{ .Values.namespace }}
+  name: {{ .Values.tektonMirror.pipeline.name }}
+  namespace: openshift-pipelines
 spec:
   description: Mirror images with oc mirror using ImageSetConfiguration from a ConfigMap and registry auth from a Secret.
   params:
@@ -43,7 +43,7 @@ spec:
             emptyDir: {}
         steps:
           - name: mirror
-            image: {{ .Values.pipeline.mirrorImage | quote }}
+            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
             volumeMounts:
               - name: mirror-output
                 mountPath: /mirror-out
@@ -74,7 +74,7 @@ spec:
               fi
               export DOCKER_CONFIG="${HOME}/.docker"
               IS_DIR="$(workspaces.imageset.path)"
-              KEY="{{ .Values.imagesetConfigMapKey }}"
+              KEY="{{ .Values.tektonMirror.imagesetConfigMapKey }}"
               SRC="${IS_DIR}/${KEY}"
               if [[ ! -f "${SRC}" ]]; then
                 SRC="$(find "${IS_DIR}" -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | head -1)"
@@ -97,7 +97,7 @@ spec:
               oc-mirror version
               oc mirror ${PARAM_EXTRA_FLAGS} --config /tmp/mirror-work/imageset.yaml "${DEST}"
           - name: emit-mirror-artifacts
-            image: {{ .Values.pipeline.mirrorImage | quote }}
+            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
             volumeMounts:
               - name: mirror-output
                 mountPath: /mirror-out

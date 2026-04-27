@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ printf "%s-tekton" .Values.serviceAccount.name }}
-  namespace: {{ .Values.namespace }}
+  name: {{ printf "%s-tekton" .Values.tektonBulkZtp.serviceAccount.name }}
+  namespace: openshift-pipelines
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ printf "%s-tekton" .Values.serviceAccount.name }}
+  name: {{ printf "%s-tekton" .Values.tektonBulkZtp.serviceAccount.name }}
 subjects:
   - kind: ServiceAccount
-    name: {{ .Values.serviceAccount.name }}
-    namespace: {{ .Values.namespace }}
+    name: {{ .Values.tektonBulkZtp.serviceAccount.name }}
+    namespace: openshift-pipelines

@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ printf "%s-managedclusters-read" .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-managedclusters-read" .Values.tektonBulkZtp.serviceAccount.name | trunc 63 | trimSuffix "-" }}
 rules:
   - apiGroups: ["cluster.open-cluster-management.io"]
     resources: ["managedclusters"]
