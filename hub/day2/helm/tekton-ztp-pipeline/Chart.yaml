@@ -1,6 +1,0 @@
-apiVersion: v2
-name: tekton-ztp
-description: OpenShift Pipelines (OCP Pipelines) — Ansible preflight, helm template ztp-spoke, git push + GitHub PR
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

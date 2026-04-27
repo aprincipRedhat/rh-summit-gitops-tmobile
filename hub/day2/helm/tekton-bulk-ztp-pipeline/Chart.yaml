@@ -1,6 +1,0 @@
-apiVersion: v2
-name: tekton-bulk-ztp
-description: OpenShift Pipelines (OCP Pipelines) — list ACM ManagedClusters and create concurrent ZTP cluster PipelineRuns (capped)
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

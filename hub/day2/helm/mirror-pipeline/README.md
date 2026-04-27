@@ -1,4 +1,4 @@
-# Chart: tekton-mirror-pipeline
+# Chart: mirror-pipeline
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Creates the Tekton `oc mirror` pipeline and RBAC in `openshift-pipelines`.
 ## Apply
 
 ```bash
-helm template tekton-mirror . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
+helm template tekton-mirror-pipeline . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
 
 ## Next

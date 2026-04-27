@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     targetRevision: main
-    path: hub/day2/helm/tekton-bulk-ztp-pipeline
+    path: hub/day2/helm/bulk-ztp-pipeline
     helm:
       releaseName: tekton-bulk-ztp-pipeline
       valueFiles:

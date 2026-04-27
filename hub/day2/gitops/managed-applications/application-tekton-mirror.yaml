@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     targetRevision: main
-    path: hub/day2/helm/tekton-mirror-pipeline
+    path: hub/day2/helm/mirror-pipeline
     helm:
       releaseName: tekton-mirror-pipeline
       valueFiles:

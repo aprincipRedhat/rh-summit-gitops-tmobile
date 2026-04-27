@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-pipelines
   labels:
     app.kubernetes.io/name: ztp-ansible-preflight
-    app.kubernetes.io/component: tekton-ztp-pipeline
+    app.kubernetes.io/component: ztp-pipeline
 data:
 {{- range $path, $content := .Files.Glob "files/ansible/**" }}
 {{- if hasSuffix ".yml" $path }}

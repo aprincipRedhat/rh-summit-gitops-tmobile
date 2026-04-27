@@ -16,9 +16,9 @@ Examples:
 ## Key Paths
 
 - `hub/day2/helm/ocp-operators-policy`
-- `hub/day2/helm/tekton-ztp-pipeline`
-- `hub/day2/helm/tekton-bulk-ztp-pipeline`
-- `hub/day2/helm/tekton-mirror-pipeline`
+- `hub/day2/helm/ztp-pipeline`
+- `hub/day2/helm/bulk-ztp-pipeline`
+- `hub/day2/helm/mirror-pipeline`
 
 ## Key Sections
 

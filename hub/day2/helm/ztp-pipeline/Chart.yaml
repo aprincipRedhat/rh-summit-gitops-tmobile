@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ztp-pipeline
+description: ZTP render pipeline — bundled Ansible, helm template ztp-spoke, git push + GitHub PR
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

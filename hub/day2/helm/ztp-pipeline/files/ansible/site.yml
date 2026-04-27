@@ -1,5 +1,5 @@
 ---
-- name: ZTP preflight checks
+- name: ZTP ansible checks
   hosts: all
   gather_facts: false
   become: false

@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-pipelines
 spec:
   description: >-
-    Clone GitOps repo, run Ansible preflight from chart-bundled ConfigMap, resolve **/pipeline-values/<cluster-name>.yaml in the repo,
+    Clone GitOps repo, run bundled Ansible checks from chart ConfigMap, resolve **/pipeline-values/<cluster-name>.yaml in the repo,
     helm template ztp-spoke with that file, push branch, open GitHub PR.
   params:
     - name: cluster-name
@@ -105,7 +105,7 @@ spec:
               #!/bin/bash
               set -euo pipefail
               if [[ "$(params.skip-ansible)" == "true" ]]; then
-                echo "skip-ansible=true — skipping Ansible preflight"
+                echo "skip-ansible=true — skipping Ansible checks"
                 exit 0
               fi
               RESTORE=/tmp/ansible-preflight
@@ -119,9 +119,9 @@ spec:
                 cp "$keypath" "$RESTORE/$rel"
               done
               REQ="$RESTORE/requirements.yml"
-              SITE="$RESTORE/preflight/site.yml"
+              SITE="$RESTORE/site.yml"
               if [[ ! -f "$SITE" ]]; then
-                echo "Bundled Ansible preflight missing at $SITE (ConfigMap mount)" >&2
+                echo "Bundled Ansible site playbook missing at $SITE (ConfigMap mount)" >&2
                 exit 1
               fi
               ansible-galaxy collection install -r "$REQ" -p /tmp/collections || true

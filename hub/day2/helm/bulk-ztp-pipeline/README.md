@@ -1,4 +1,4 @@
-# Chart: tekton-bulk-ztp-pipeline
+# Chart: bulk-ztp-pipeline
 
 ## Purpose
 
@@ -17,5 +17,5 @@ Creates a bulk Tekton pipeline that:
 ## Apply
 
 ```bash
-helm template tekton-bulk-ztp . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
+helm template tekton-bulk-ztp-pipeline . -f ../../../hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 ```
