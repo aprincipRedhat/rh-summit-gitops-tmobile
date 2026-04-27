@@ -1,8 +1,13 @@
-# Spoke cluster automation
+# Spoke Cluster Automation
 
-Artifacts used when provisioning or configuring spokes from the hub.
+## Purpose
 
-| Path | Role |
-|------|------|
-| [`helm/ztp-spoke`](helm/ztp-spoke) | Helm chart: **ClusterInstance**, spoke **Namespace**, optional **`ztp-common`** per-cluster **ConfigMap** (`clusterValues.data`). Values come from **[`../pipeline-values`](../pipeline-values)** (`**/pipeline-values/<cluster>.yaml`); OCP Pipelines uses `ztpChartRelativePath` in `hub/day2/helm/tekton-ztp-pipeline` and `tekton-bulk-ztp-pipeline`. |
-| [`../policies`](../policies) | **PolicyGenerator** + Kustomize: example RHACM policies (including **Placement** on **`common: "true"`** and optional Pipelines pin from hub ConfigMaps). |
+Contains spoke-side templating inputs used by hub pipelines.
+
+## Key Paths
+
+| Path | Purpose |
+|------|---------|
+| `helm/ztp-spoke/` | Helm chart for `ClusterInstance`, namespace, and optional shared config. |
+| `../pipeline-values/` | Per-cluster values files consumed by the ZTP pipeline. |
+| `../policies/` | Optional RHACM policies applied to managed clusters. |

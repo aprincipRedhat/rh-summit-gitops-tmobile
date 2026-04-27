@@ -1,29 +1,20 @@
-# Hub day2 — OpenShift GitOps app of apps (child Applications)
+# Day 2 Managed Applications
 
-The **root** `Application` from **`hub/day2/gitops/bootstrap`** syncs this directory. Each manifest here is typically an OpenShift GitOps **`Application`** that points at a **Helm chart** or **Kustomize** directory elsewhere in the same repo.
+## Purpose
 
-## Included Applications
+This folder contains child OpenShift GitOps `Application` manifests synced by the root app.
 
-| File | Deploys |
-|------|---------|
-| [application-ocp-operators-policy.yaml](application-ocp-operators-policy.yaml) | [hub/day2/helm/ocp-operators-policy](../../helm/ocp-operators-policy) — ACM `Policy` resources that install OpenShift Pipelines + OpenShift GitOps operators on the hub (`local-cluster`) |
-| [application-tekton-mirror.yaml](application-tekton-mirror.yaml) | [hub/day2/helm/tekton-mirror-pipeline](../../helm/tekton-mirror-pipeline) — mirror `Pipeline` + RBAC to **`openshift-pipelines`** |
-| [application-tekton-bulk-ztp.yaml](application-tekton-bulk-ztp.yaml) | [hub/day2/helm/tekton-bulk-ztp-pipeline](../../helm/tekton-bulk-ztp-pipeline) — bulk `Pipeline` (ManagedCluster ? ZTP `PipelineRun`s, capped concurrency) |
-| [application-tekton-ztp.yaml](application-tekton-ztp.yaml) | [hub/day2/helm/tekton-ztp-pipeline](../../helm/tekton-ztp-pipeline) — ZTP render + GitHub PR `Pipeline` |
-| [application-acm-policies.yaml](application-acm-policies.yaml) | [spokes/policies](../../../spokes/policies) — Kustomize + **PolicyGenerator** (RHACM policies, **Placement** on **`common: "true"`**). Requires [repo-server plugin](../policy-generator-plugin/README.md). |
+## Apps
 
-## Before you sync
+- `application-ocp-operators-policy.yaml`
+- `application-tekton-ztp.yaml`
+- `application-tekton-bulk-ztp.yaml`
+- `application-tekton-mirror.yaml`
+- `application-acm-policies.yaml`
 
-1. Edit **`repoURL`** and **`targetRevision`** in each `Application` to match your Git remote (same values you use in **`hub/day2/gitops/bootstrap/values.yaml`** for the ApplicationSet).
+## Before Sync
 
-2. Ensure **OpenShift GitOps** is installed and can reconcile `Application` CRs in **`openshift-gitops`**.
-
-3. Create secrets referenced by the charts (e.g. GitHub PAT for the ZTP OCP Pipelines chart, registry pull secret for mirror runs) out of band; OpenShift GitOps only syncs the chart manifests.
-
-4. **PolicyGenerator on OpenShift GitOps:** **`app-acm-policies`** runs `kustomize build` on **`spokes/policies`**, which uses the PolicyGenerator **alpha** plugin. Install the plugin on **`openshift-gitops-repo-server`** and set **`kustomizeBuildOptions: --enable-alpha-plugins`** (see [policy-generator-plugin](../policy-generator-plugin/README.md)).
-
-5. Update `spec.source.helm.valueFiles` entries to your hub-specific file under [`hub/hub-values`](../../../hub-values/README.md) (for example `dev/east/hub-values/dev-hub-east-1.yaml`).
-
-## Layout note
-
-If you still have an old **`argocd/argocd/managed-applications`** path (duplicate `argocd`), remove it. The canonical app-of-apps path is **`hub/day2/gitops/managed-applications/`**, matching `rootApp.sourcePath` in **`gitops/bootstrap/values.yaml`**.
+1. Set `repoURL` and `targetRevision` to your Git repo.
+2. Ensure referenced secrets exist (GitHub token, registry secret, etc.).
+3. Ensure PolicyGenerator support is enabled if syncing `spokes/policies`.
+4. Set correct hub values file in each app `spec.source.helm.valueFiles`.

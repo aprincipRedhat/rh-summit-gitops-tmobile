@@ -1,24 +1,18 @@
-# helm/ocp-operators-policy
+# Chart: ocp-operators-policy
 
-Installs RHACM **OperatorPolicy** resources on the hub for OpenShift operator subscriptions:
+## Purpose
 
-- OpenShift Pipelines (`openshift-pipelines-operator-rh`)
-- OpenShift GitOps (`openshift-gitops-operator`)
+Creates RHACM `OperatorPolicy` resources for hub operator installs:
 
-The chart renders `OperatorPolicy` objects directly in namespace **`local-cluster`**.
+- OpenShift Pipelines operator
+- OpenShift GitOps operator
 
-## Values
+## Inputs
 
-Only these fields are configurable:
+Uses shared hub values file (`hub/hub-values/.../<hub>.yaml`) with:
 
-- `operators.openshiftPipelines.channel`
-- `operators.openshiftPipelines.startingCSV`
-- `operators.openshiftPipelines.approvedCSVs`
-- `operators.openshiftGitOps.channel`
-- `operators.openshiftGitOps.startingCSV`
-- `operators.openshiftGitOps.approvedCSVs`
-
-Everything else is statically set in templates.
+- `operators.openshiftPipelines.*`
+- `operators.openshiftGitOps.*`
 
 ## Apply
 

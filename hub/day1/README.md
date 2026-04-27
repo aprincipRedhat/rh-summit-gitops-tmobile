@@ -1,16 +1,18 @@
-# Hub — Day 1 (ACM bootstrap)
+# Hub Day 1
 
-Install **multicluster engine**, **Advanced Cluster Management** operator subscriptions, and **`MultiClusterHub`** before any governance or GitOps day-2 configuration.
+## Purpose
 
-## Chart
+Day 1 installs ACM core components on the hub cluster:
 
-| Chart | Path |
-|-------|------|
-| ACM Day 1 | [helm/acm-day1](helm/acm-day1) |
+- multicluster engine
+- ACM operator subscription
+- `MultiClusterHub`
+
+## Key Path
+
+- Path: `hub/day1/helm/acm-day1`
 
 ## Apply
-
-From the repository root:
 
 ```bash
 helm template acm-day1 ./hub/day1/helm/acm-day1 -f hub/day1/helm/acm-day1/values.yaml | oc apply -f -
@@ -26,8 +28,4 @@ oc get mch -n open-cluster-management
 
 ## Next
 
-Hub-wide bootstrap (OpenShift GitOps repo-server patch, OpenShift GitOps bootstrap, then Day 2): [hub/README.md](../README.md). After `MultiClusterHub` is **Running**, continue with [hub/day2/README.md](../day2/README.md).
-
-## References
-
-- [Installing ACM 2.15](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.15/html/install/installing)
+Continue with `hub/day2/README.md`.

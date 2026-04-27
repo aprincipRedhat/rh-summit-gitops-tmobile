@@ -1,5 +1,11 @@
-# Rendered spoke manifests (Git)
+# Spokes Clusters Output
 
-The ZTP OpenShift Pipelines pipeline writes **`manifests.yaml`** under `spokes/clusters/<clusterName>/` and opens a pull request. OpenShift GitOps **ApplicationSet** (from **`hub/day2/gitops/bootstrap`**) watches **`spokes/clusters/*`** by default.
+## Purpose
 
-This directory is intentionally empty in source control until the pipeline runs.
+This folder is generated output.
+
+The ZTP pipeline writes:
+
+- `spokes/clusters/<cluster-name>/manifests.yaml`
+
+OpenShift GitOps `ApplicationSet` watches `spokes/clusters/*` and syncs each folder.
