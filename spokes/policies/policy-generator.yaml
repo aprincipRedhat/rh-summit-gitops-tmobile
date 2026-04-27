@@ -18,18 +18,6 @@ policies:
     manifests:
       - path: manifests/namespace.yaml
       - path: manifests/secret.yaml
-  - name: policy-openshift-gitops-pipelines
-    disabled: false
-    remediationAction: enforce
-    severity: high
-    placement:
-      labelSelector:
-        matchLabels:
-          common: "true"
-          name: local-cluster
-    manifests:
-      - path: manifests/gitops-subscription.yaml
-      - path: manifests/pipelines-subscription.yaml
   - name: policy-ztp-operator-pipelines-pin
     disabled: true
     remediationAction: enforce

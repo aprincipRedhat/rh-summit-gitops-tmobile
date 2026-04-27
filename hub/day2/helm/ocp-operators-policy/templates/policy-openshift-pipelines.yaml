@@ -1,0 +1,23 @@
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: OperatorPolicy
+metadata:
+  name: policy-openshift-pipelines-operator
+  namespace: local-cluster
+spec:
+  remediationAction: "enforce"
+  severity: "high"
+  complianceType: musthave
+  upgradeApproval: "None"
+  subscription:
+    name: "openshift-pipelines-operator-rh"
+    namespace: "openshift-operators"
+    channel: {{ .Values.operators.openshiftPipelines.channel | quote }}
+    source: "redhat-operators"
+    sourceNamespace: "openshift-marketplace"
+    {{- if .Values.operators.openshiftPipelines.startingCSV }}
+    startingCSV: {{ .Values.operators.openshiftPipelines.startingCSV | quote }}
+    {{- end }}
+  {{- if .Values.operators.openshiftPipelines.approvedCSVs }}
+  versions:
+{{ toYaml .Values.operators.openshiftPipelines.approvedCSVs | indent 4 }}
+  {{- end }}

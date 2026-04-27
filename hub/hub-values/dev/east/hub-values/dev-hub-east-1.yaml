@@ -1,0 +1,12 @@
+operators:
+  openshiftPipelines:
+    channel: latest
+    startingCSV: openshift-pipelines-operator-rh.v1.19.0
+    approvedCSVs:
+      - openshift-pipelines-operator-rh.v1.19.0
+
+  openshiftGitOps:
+    channel: latest
+    startingCSV: openshift-gitops-operator.v1.15.0
+    approvedCSVs:
+      - openshift-gitops-operator.v1.15.0

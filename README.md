@@ -50,13 +50,15 @@ Repository split into **hub** (day1 / day2 lifecycle) and **spokes** (cluster ma
 
 | [hub/day1/](hub/day1/) | ACM hub bootstrap (MCE, ACM operator, `MultiClusterHub`) |
 
-| [hub/day2/](hub/day2/) | Day-2 hub: OCP Pipelines, OpenShift GitOps bootstrap, Ansible, mirror image; RHACM policies sync from **`spokes/policies`** via OpenShift GitOps |
+| [hub/day2/](hub/day2/) | Day-2 hub: OCP Pipelines, OpenShift GitOps bootstrap, hub operator policy chart, Ansible, mirror image; RHACM policies sync from **`spokes/policies`** via OpenShift GitOps |
 
 | [spokes/cluster-automation/](spokes/cluster-automation/) | **`ztp-spoke`** Helm chart (used by OCP Pipelines) + pointer to policies |
 
 | [spokes/policies](spokes/policies) | Kustomize + `PolicyGenerator` policy sources |
 
 | [spokes/pipeline-values/](spokes/pipeline-values/) | Per-cluster Helm values for **`ztp-spoke`** (`**/pipeline-values/<cluster>.yaml`) |
+
+| [hub/hub-values/](hub/hub-values/) | Per-hub values for hub charts (<env>/<site>/hub-values/<hub>.yaml) |
 
 | [spokes/clusters/](spokes/clusters/) | **Git output** from ZTP OpenShift Pipelines pipeline (one dir per cluster); created by automation, not shipped empty |
 
@@ -112,5 +114,6 @@ See **[hub/README.md](hub/README.md)** for hub bootstrap steps, then [hub/day1/R
 
 
 
-**GitOps for pipelines:** After you apply **`hub/day2/gitops/bootstrap`**, the **root** `Application` syncs **`hub/day2/gitops/managed-applications/`**, which contains child **`Application`** manifests for **`app-tekton-mirror`**, **`app-tekton-bulk-ztp`**, **`app-tekton-ztp`**, and **`app-acm-policies`** (edit `repoURL` in those files to match your Git remote). That is how the OCP Pipelines Helm charts get continuously deployed from Git alongside the **ApplicationSet** for spokes.
+**GitOps for pipelines/operators:** After you apply **`hub/day2/gitops/bootstrap`**, the **root** `Application` syncs **`hub/day2/gitops/managed-applications/`**, which contains child **`Application`** manifests for **`app-ocp-operators-policy`**, **`app-tekton-mirror`**, **`app-tekton-bulk-ztp`**, **`app-tekton-ztp`**, and **`app-acm-policies`** (edit `repoURL` in those files to match your Git remote). Per-hub operator settings come from `hub/hub-values/.../<hub>.yaml` via Helm `valueFiles`.
+
 

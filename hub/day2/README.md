@@ -26,6 +26,10 @@ Apply after **Day 1** is complete and **OpenShift GitOps** and **OpenShift Pipel
 
 | OCP Pipelines ZTP render + GitHub PR | [helm/tekton-ztp-pipeline](helm/tekton-ztp-pipeline) |
 
+| Hub operator policy chart (Pipelines + GitOps operators) | [helm/ocp-operators-policy](helm/ocp-operators-policy) |
+
+| Hub-specific values for hub charts | [../hub-values](../hub-values) (<env>/<site>/hub-values/<hub>.yaml) |
+
 | Ansible preflight (bundled in ZTP chart) | [helm/tekton-ztp-pipeline/files/ansible](helm/tekton-ztp-pipeline/files/ansible) |
 
 | `oc-mirror` image | [images/oc-mirror](images/oc-mirror) |
@@ -47,6 +51,8 @@ Default **ApplicationSet** watches **`spokes/clusters/*`** in Git; the root **Ap
 ```bash
 
 helm template argocd-bootstrap ./hub/day2/gitops/bootstrap -f hub/day2/gitops/bootstrap/values.yaml | oc apply -f -
+
+helm template ocp-operators-policy ./hub/day2/helm/ocp-operators-policy -f hub/day2/helm/ocp-operators-policy/values.yaml -f hub/hub-values/dev/east/hub-values/dev-hub-east-1.yaml | oc apply -f -
 
 helm template tekton-mirror ./hub/day2/helm/tekton-mirror-pipeline -f hub/day2/helm/tekton-mirror-pipeline/values.yaml | oc apply -f -
 
@@ -89,4 +95,5 @@ Many teams render in CI and apply or commit generated `Policy` YAML to a path Op
 
 
 [hub/day1/README.md](../day1/README.md)
+
 

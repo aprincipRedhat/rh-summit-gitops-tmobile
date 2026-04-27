@@ -4,6 +4,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - application-ocp-operators-policy.yaml
   - application-tekton-mirror.yaml
   - application-tekton-bulk-ztp.yaml
   - application-tekton-ztp.yaml
