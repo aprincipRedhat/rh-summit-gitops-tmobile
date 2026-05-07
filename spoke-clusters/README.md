@@ -20,12 +20,12 @@ Shared PolicyGenerator manifests live once at repository root: **`source-crs/`**
 
 Under each hub’s **`policies/`** directory:
 
-- **`common-operator-install-pg.yaml`** — aggregated install-phase policies (subscriptions, namespaces, etc.).
-- **`common-operator-config-pg.yaml`** — aggregated configuration-phase policies (pins, operator CRs, etc.).
+- **`common-gitops-config-pg.yaml`** — example **configuration** policy: **`ArgoCD`** instance resources from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (raise limits/requests).
+- **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (same file, multiple **patches**).
 
-Both are referenced from **`kustomization.yaml`** via `generators`.
+**`policies/manifests/`** holds **static** **`resources:`** only (namespace **`policies`**, hub-template **RBAC**) — not PolicyGenerator inputs. See **`manifests/README.md`** per hub.
 
-**`path`** entries use **`../../../../../source-crs/...`** (relative to **`policies/kustomization.yaml`**) so every hub reuses the same files under **`source-crs/`**. Hub-specific overlays use **`manifests[].patches`** in the **`policies/common-operator-*-pg.yaml`** files.
+**`path`** entries use **`../../../../../source-crs/...`** (relative to **`policies/kustomization.yaml`**).
 
 OpenShift GitOps repo server sets **`POLICY_GEN_DISABLE_LOAD_RESTRICTORS=true`** (via **`policy-generator-gitops-patch`**) so those paths resolve outside the **`policies/`** directory.
 

@@ -1,0 +1,11 @@
+# Generic MachineConfig — substitute ${MC_SUFFIX} (MachineConfig metadata.name becomes 99-worker-${MC_SUFFIX}).
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 99-worker-${MC_SUFFIX}
+spec:
+  config:
+    ignition:
+      version: "3.2.0"

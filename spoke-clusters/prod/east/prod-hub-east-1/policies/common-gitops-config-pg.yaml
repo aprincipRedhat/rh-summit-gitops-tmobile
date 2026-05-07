@@ -1,0 +1,44 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: summit-gitops-config
+policyDefaults:
+  namespace: policies
+  remediationAction: inform
+  severity: medium
+  hubTemplateOptions:
+    serviceAccountName: policy-hub-template-lookup
+  placement:
+    labelSelector:
+      matchLabels:
+        common: "true"
+policies:
+  - name: policy-argocd-resource-tune
+    disabled: true
+    remediationAction: enforce
+    severity: medium
+    manifests:
+      - path: ../../../../../source-crs/generic-argocd-instance-resources.yaml
+        patches:
+          - apiVersion: argoproj.io/v1beta1
+            kind: ArgoCD
+            metadata:
+              name: openshift-gitops
+              namespace: openshift-gitops
+            spec:
+              server:
+                resources:
+                  limits:
+                    cpu: "2"
+                    memory: 2Gi
+                  requests:
+                    cpu: "1"
+                    memory: 1Gi
+              applicationSet:
+                resources:
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi

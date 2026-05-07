@@ -1,0 +1,9 @@
+# Generic ConfigMap — substitute ${NAME}, ${NAMESPACE}, ${VALUE}.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+data:
+  app.properties: |
+    key=${VALUE}

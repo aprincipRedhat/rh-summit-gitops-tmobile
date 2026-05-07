@@ -1,0 +1,13 @@
+# Generic PersistentVolumeClaim — substitute ${NAME}, ${NAMESPACE}, ${STORAGE_CLASS}.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ${STORAGE_CLASS}

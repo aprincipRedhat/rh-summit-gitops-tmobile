@@ -6,10 +6,10 @@ PolicyGenerator + Kustomize source for RHACM governance policies for hub **`dev-
 
 ## Layout
 
-- **`common-operator-install-pg.yaml`** — PolicyGenerator entry for install-phase policies (aggregated output); **`path`** entries reference **`../../../../../source-crs/`** (repository root).
-- **`common-operator-config-pg.yaml`** — PolicyGenerator entry for configuration-phase policies (aggregated output); same shared **`source-crs/`** pattern.
-- **`kustomization.yaml`** — references both generators and static `manifests/` resources (not PolicyGenerator-sourced).
-- **`../../../../../source-crs/`** — shared catalog at repo root (see **`source-crs/README.md`**).
+- **`common-gitops-config-pg.yaml`** — **`ArgoCD`** resource tuning from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (disabled by default — set **`disabled: false`** to roll out).
+- **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (multiple entries + **patches**).
+- **`kustomization.yaml`** — **`generators`** + static **`resources`** under **`manifests/`** (see **`manifests/README.md`**).
+- **`../../../../../source-crs/`** — shared PolicyGenerator inputs at repo root.
 
 ## Outputs
 

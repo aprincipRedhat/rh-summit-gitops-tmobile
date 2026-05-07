@@ -1,0 +1,17 @@
+# Generic OperatorPolicy — patch ${OPERATOR_POLICY_NAME}, ${PACKAGE_NAME}, ${CHANNEL}; hub-only namespace line kept as-is.
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: OperatorPolicy
+metadata:
+  name: ${OPERATOR_POLICY_NAME}
+  namespace: '{{ fromClusterClaim "name" }}'
+spec:
+  remediationAction: enforce
+  severity: high
+  complianceType: musthave
+  upgradeApproval: Automatic
+  subscription:
+    name: ${PACKAGE_NAME}
+    namespace: openshift-operators
+    channel: ${CHANNEL}
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace

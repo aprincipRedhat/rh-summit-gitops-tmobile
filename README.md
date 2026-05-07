@@ -29,7 +29,7 @@ Install OpenShift **Pipelines** on the hub via Tekton pipeline Applications (sep
 | `cluster-automation/ztp-spoke` | Helm chart rendered by the ZTP pipeline (`ClusterInstance`, etc.). |
 | `custom-container-images/oc-mirror` | Container image build for the mirror pipeline runner. |
 | `source-crs/` | Shared PolicyGenerator source manifests referenced by every hub’s **`spoke-clusters/.../policies/`** PolicyGenerator files. |
-| `spoke-clusters/<env>/<site>/<hub>/policies` | PolicyGenerator + policy manifests (`common-operator-install-pg.yaml`, `common-operator-config-pg.yaml`). |
+| `spoke-clusters/<env>/<site>/<hub>/policies` | PolicyGenerator (`common-gitops-config-pg.yaml`, `common-operatorpolicy-pg.yaml`) + static `manifests/` (RBAC, `policies` ns). |
 | `spoke-clusters/<env>/<site>/<hub>/99-pipeline-values/<cluster>.yaml` | Per-spoke inputs for `helm template`. |
 | `spoke-clusters/<env>/<site>/<hub>/clusters/<cluster>/manifests.yaml` | Pipeline output; ApplicationSet watches `spoke-clusters/*/*/*/clusters/*`. |
 

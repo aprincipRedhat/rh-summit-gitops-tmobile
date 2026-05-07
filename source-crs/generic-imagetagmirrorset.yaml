@@ -1,0 +1,10 @@
+# Generic ImageTagMirrorSet — substitute ${NAME}, ${SOURCE_REGISTRY}, ${MIRROR_REGISTRY}.
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: ${NAME}
+spec:
+  imageTagMirrors:
+    - source: ${SOURCE_REGISTRY}
+      mirrors:
+        - ${MIRROR_REGISTRY}

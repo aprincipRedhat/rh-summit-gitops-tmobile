@@ -1,0 +1,10 @@
+# Generic ImageDigestMirrorSet — substitute ${NAME}, ${SOURCE_REGISTRY}, ${MIRROR_REGISTRY}.
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: ${NAME}
+spec:
+  imageDigestMirrors:
+    - source: ${SOURCE_REGISTRY}
+      mirrors:
+        - ${MIRROR_REGISTRY}
