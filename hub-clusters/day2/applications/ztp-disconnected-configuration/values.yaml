@@ -1,0 +1,34 @@
+# Override from hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → ztpDisconnected
+ztpDisconnected:
+  enabled: false
+
+  # Aligns with OpenShift “Using Operator Lifecycle Manager in disconnected environments”:
+  # disable default remote CatalogSources when using mirrored index images only.
+  operatorHub:
+    enabled: false
+    disableAllDefaultSources: true
+
+  # ImageDigestMirrorSet / ImageTagMirrorSet data for Assisted Installer–style disconnected ZTP: rendered into
+  # ztpDisconnected.configMap data keys only (not applied as cluster-scoped IDMS/ITMS CRs on the hub).
+  # Each entry: { name: string, spec: { imageDigestMirrors: [...] } } — see chart README.
+  imageDigestMirrorSets: []
+
+  imageTagMirrorSets: []
+
+  # Mirrored operator indexes (grpc CatalogSource) in openshift-marketplace (or custom ns).
+  catalogSources: []
+
+  # Emits ImageDigestMirrorSets.yaml / ImageTagMirrorSets.yaml in a ConfigMap (e.g. for assisted-installer / ZTP).
+  configMap:
+    enabled: false
+    name: ztp-disconnected-mirror-artifacts
+    namespace: openshift-config
+  # - name: redhat-operators-disconnected
+  #   namespace: openshift-marketplace
+  #   spec:
+  #     sourceType: grpc
+  #     image: registry.example.com:5000/olm-mirror/redhat-operator-index:v4.16
+  #     displayName: Red Hat Operators (disconnected)
+  #     publisher: Red Hat
+  #     secrets:
+  #       - mirror-registry-pullsecret

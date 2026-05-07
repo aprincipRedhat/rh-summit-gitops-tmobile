@@ -1,0 +1,25 @@
+# App-of-apps: syncs hub-clusters/day2/managed-applications as Helm (values.yaml selects hub segment for 99-environments paths).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.rootApp.name }}
+  namespace: openshift-gitops
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: {{ .Values.rootApp.sourcePath | quote }}
+    helm:
+      releaseName: {{ .Values.rootApp.helmReleaseName | quote }}
+      valueFiles:
+{{- range .Values.rootApp.helmValueFiles }}
+        - {{ . | quote }}
+{{- end }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

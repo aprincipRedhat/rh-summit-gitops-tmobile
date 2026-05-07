@@ -1,0 +1,300 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.tektonMirror.pipeline.name }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    oc mirror → write IDMS/ITMS artifacts to workspace → merge ztpDisconnected.imageDigestMirrorSets /
+    imageTagMirrorSets into hub 99-environments values.yaml → commit + GitHub PR → Argo reapplies
+    ztp-disconnected-configuration (ConfigMap mirror YAML for disconnected ZTP / assisted-installer; not IDMS/ITMS CRs on the hub).
+  params:
+    - name: dest-registry
+      type: string
+      description: "Target registry (with or without docker:// prefix)"
+    - name: extra-flags
+      type: string
+      default: ""
+    - name: skip-git-sync
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.skip | quote }}
+      description: If true, skip clone/merge/PR (mirror output remains under workspace/mirror-artifacts only).
+    - name: gitops-repo-url
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.gitopsRepoUrl | quote }}
+    - name: git-revision
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.gitRevision | quote }}
+    - name: git-base-branch
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.gitBaseBranch | quote }}
+    - name: github-repo-slug
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.githubRepoSlug | quote }}
+    - name: hub-values-relative-path
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.hubValuesRelativePath | quote }}
+      description: Path from repo root to the hub 99-environments values.yaml to patch (IDMS/ITMS merge).
+    - name: git-user-name
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
+    - name: git-user-email
+      type: string
+      default: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+    - name: pr-title
+      type: string
+      default: "chore: sync oc-mirror IDMS/ITMS into hub 99-environments"
+  workspaces:
+    - name: imageset
+    - name: registry-auth
+    - name: shared
+      description: oc mirror output + git clone for promote step
+  tasks:
+    - name: oc-mirror
+      workspaces:
+        - name: imageset
+          workspace: imageset
+        - name: registry-auth
+          workspace: registry-auth
+        - name: shared
+          workspace: shared
+      params:
+        - name: dest-registry
+          value: $(params.dest-registry)
+        - name: extra-flags
+          value: $(params.extra-flags)
+      taskSpec:
+        params:
+          - name: dest-registry
+          - name: extra-flags
+            default: ""
+        workspaces:
+          - name: imageset
+          - name: registry-auth
+          - name: shared
+        steps:
+          - name: mirror
+            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
+            env:
+              - name: PARAM_DEST_REGISTRY
+                value: $(params.dest-registry)
+              - name: PARAM_EXTRA_FLAGS
+                value: $(params.extra-flags)
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              export HOME=/tmp/tekton-home
+              mkdir -p "${HOME}/.docker"
+              AUTH_DIR="$(workspaces.registry-auth.path)"
+              if [[ -f "${AUTH_DIR}/.dockerconfigjson" ]]; then
+                cp "${AUTH_DIR}/.dockerconfigjson" "${HOME}/.docker/config.json"
+              elif [[ -f "${AUTH_DIR}/config.json" ]]; then
+                cp "${AUTH_DIR}/config.json" "${HOME}/.docker/config.json"
+              else
+                echo "Expected .dockerconfigjson or config.json in registry-auth workspace" >&2
+                exit 1
+              fi
+              export DOCKER_CONFIG="${HOME}/.docker"
+              IS_DIR="$(workspaces.imageset.path)"
+              KEY="{{ .Values.tektonMirror.imagesetConfigMapKey }}"
+              SRC="${IS_DIR}/${KEY}"
+              if [[ ! -f "${SRC}" ]]; then
+                SRC="$(find "${IS_DIR}" -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | head -1)"
+              fi
+              if [[ -z "${SRC}" || ! -f "${SRC}" ]]; then
+                echo "No ImageSetConfiguration file found in imageset workspace" >&2
+                exit 1
+              fi
+              mkdir -p /tmp/mirror-work
+              cp "${SRC}" /tmp/mirror-work/imageset.yaml
+              REG="${PARAM_DEST_REGISTRY}"
+              case "${REG}" in
+                docker://*) DEST="${REG}" ;;
+                *) DEST="docker://${REG}" ;;
+              esac
+              OUT="$(workspaces.shared.path)/mirror-artifacts"
+              mkdir -p "${OUT}"
+              cd "${OUT}"
+              set -x
+              oc version --client
+              CFG=/tmp/mirror-work/imageset.yaml
+              if oc mirror --help >/dev/null 2>&1; then
+                oc mirror ${PARAM_EXTRA_FLAGS} --config "${CFG}" "${DEST}"
+              elif command -v oc-mirror >/dev/null 2>&1; then
+                oc-mirror ${PARAM_EXTRA_FLAGS} --config "${CFG}" "${DEST}"
+              else
+                echo "Neither 'oc mirror' plugin nor oc-mirror binary found in PATH" >&2
+                exit 1
+              fi
+          - name: list-artifacts
+            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              OUT="$(workspaces.shared.path)/mirror-artifacts"
+              echo "=== Mirror artifacts under ${OUT} ==="
+              find "${OUT}" -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort | head -200 || true
+              echo "=== ImageDigestMirrorSet / ImageTagMirrorSet manifests ==="
+              find "${OUT}" -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | while read -r f; do
+                if grep -qE '^kind: (ImageDigestMirrorSet|ImageTagMirrorSet)' "$f" 2>/dev/null; then
+                  echo "--- ${f} ---"
+                  cat "$f"
+                  echo ""
+                fi
+              done || true
+
+    - name: promote-oc-mirror-to-git
+      runAfter: [oc-mirror]
+      when:
+        - input: $(params.skip-git-sync)
+          operator: notin
+          values: ["true"]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-revision
+          value: $(params.git-revision)
+        - name: git-base-branch
+          value: $(params.git-base-branch)
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: hub-values-relative-path
+          value: $(params.hub-values-relative-path)
+        - name: git-user-name
+          value: $(params.git-user-name)
+        - name: git-user-email
+          value: $(params.git-user-email)
+        - name: pr-title
+          value: $(params.pr-title)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: gitops-repo-url
+          - name: git-revision
+          - name: git-base-branch
+          - name: github-repo-slug
+          - name: hub-values-relative-path
+          - name: git-user-name
+          - name: git-user-email
+          - name: pr-title
+        steps:
+          - name: merge-values-and-pr
+            image: {{ .Values.tektonMirror.images.alpineTools | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.tektonMirror.github.secretName }}
+                    key: {{ .Values.tektonMirror.github.secretKey }}
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              apk add --no-cache bash curl jq git ca-certificates tar
+              YQ_VER={{ .Values.tektonMirror.gitSync.yqVersion | quote }}
+              GH_VER={{ .Values.tektonMirror.gitSync.ghVersion | quote }}
+              curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -o /usr/local/bin/yq
+              chmod +x /usr/local/bin/yq
+              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" | tar xz -C /tmp
+              mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /usr/local/bin/gh
+              chmod +x /usr/local/bin/gh
+
+              ROOT="$(workspaces.shared.path)"
+              MIRROR="${ROOT}/mirror-artifacts"
+              if [ ! -d "${MIRROR}" ]; then
+                echo "mirror-artifacts missing under workspace" >&2
+                exit 1
+              fi
+
+              collect_cr() {
+                local kind="$1"
+                local out="$2"
+                : > "${out}.raw"
+                while read -r f; do
+                  [ -z "${f}" ] && continue
+                  /usr/local/bin/yq ea -o=json ". | select(.kind == \"${kind}\")" "${f}" 2>/dev/null >> "${out}.raw" || true
+                done < <(find "${MIRROR}" -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort)
+
+                if [ ! -s "${out}.raw" ]; then
+                  echo '[]' > "${out}.json"
+                  return 0
+                fi
+                : > "${out}.jsonl"
+                while IFS= read -r line; do
+                  [ -z "${line}" ] && continue
+                  echo "${line}" | jq -c '{name: .metadata.name, spec: .spec}' >> "${out}.jsonl"
+                done < "${out}.raw"
+                jq -s '.' "${out}.jsonl" > "${out}.json"
+              }
+
+              collect_cr ImageDigestMirrorSet /tmp/idms
+              collect_cr ImageTagMirrorSet /tmp/itms
+
+              IDMS_CT=$(jq 'length' /tmp/idms.json)
+              ITMS_CT=$(jq 'length' /tmp/itms.json)
+              if [ "${IDMS_CT}" -eq 0 ] && [ "${ITMS_CT}" -eq 0 ]; then
+                echo "No ImageDigestMirrorSet or ImageTagMirrorSet documents found under ${MIRROR}" >&2
+                exit 1
+              fi
+
+              jq -n --slurpfile idms /tmp/idms.json --slurpfile itms /tmp/itms.json '
+                {
+                  ztpDisconnected: {
+                    enabled: true,
+                    imageDigestMirrorSets: $idms[0],
+                    imageTagMirrorSets: $itms[0]
+                  }
+                }' | /usr/local/bin/yq -P > /tmp/fragment.yaml
+
+              rm -rf "${ROOT}/src"
+              git clone --depth 1 --branch "$(params.git-revision)" "$(params.gitops-repo-url)" "${ROOT}/src"
+              cd "${ROOT}/src"
+              VALUES_PATH="$(params.hub-values-relative-path)"
+              if [ ! -f "${VALUES_PATH}" ]; then
+                echo "values file not found at ${VALUES_PATH}" >&2
+                exit 1
+              fi
+
+              cp "${VALUES_PATH}" /tmp/values-before.yaml
+              /usr/local/bin/yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
+                "${VALUES_PATH}" /tmp/fragment.yaml > /tmp/values-after.yaml
+              mv /tmp/values-after.yaml "${VALUES_PATH}"
+
+              git config user.name "$(params.git-user-name)"
+              git config user.email "$(params.git-user-email)"
+              BRANCH="mirror-oc-sync-$(date +%s)"
+              git checkout -b "${BRANCH}"
+              git add "${VALUES_PATH}"
+              git commit -m "chore: sync oc-mirror IDMS/ITMS into ${VALUES_PATH}" || {
+                echo "No changes after merge (already up to date)?" >&2
+                git diff --stat
+                exit 0
+              }
+
+              REMOTE="$(params.gitops-repo-url)"
+              case "${REMOTE}" in
+                https://github.com/*)
+                  OWNER_REPO=$(echo "${REMOTE}" | sed -e 's|https://github.com/||' -e 's|\.git$||')
+                  git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
+                  ;;
+                *)
+                  echo "Expected https://github.com/ gitops-repo-url for token push" >&2
+                  exit 1
+                  ;;
+              esac
+              git push -u origin "${BRANCH}"
+              export GH_TOKEN
+              gh pr create \
+                --repo "$(params.github-repo-slug)" \
+                --base "$(params.git-base-branch)" \
+                --head "${BRANCH}" \
+                --title "$(params.pr-title)" \
+                --body "Automated update from Tekton **{{ .Values.tektonMirror.pipeline.name }}** after **oc mirror**. Merges **ztpDisconnected.imageDigestMirrorSets** / **imageTagMirrorSets** into **\`$(params.hub-values-relative-path)\`** for the **ztp-disconnected-configuration** mirror **ConfigMap** (Assisted Installer / disconnected ZTP; hub does not apply IDMS/ITMS cluster CRs from this chart)."

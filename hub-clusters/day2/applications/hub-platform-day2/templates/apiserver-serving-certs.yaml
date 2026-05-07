@@ -1,0 +1,17 @@
+{{- if and .Values.hubPlatform.apiServer.enabled (gt (len .Values.hubPlatform.apiServer.namedCertificates) 0) }}
+apiVersion: operator.openshift.io/v1
+kind: APIServer
+metadata:
+  name: cluster
+spec:
+  servingCerts:
+    namedCertificates:
+{{- range .Values.hubPlatform.apiServer.namedCertificates }}
+      - names:
+{{- range .names }}
+          - {{ . | quote }}
+{{- end }}
+        servingCertificate:
+          name: {{ .secretName | quote }}
+{{- end }}
+{{- end }}

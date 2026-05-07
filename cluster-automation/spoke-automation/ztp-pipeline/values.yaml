@@ -1,0 +1,4 @@
+# Defaults — hub overrides via hub-clusters/day2/99-environments/.../values.yaml (tektonZtp)
+tektonZtp:
+  git:
+    cloneDepth: 50

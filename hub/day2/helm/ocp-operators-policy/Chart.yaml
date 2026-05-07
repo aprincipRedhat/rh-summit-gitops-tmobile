@@ -1,6 +1,0 @@
-apiVersion: v2
-name: ocp-operators-policy
-description: ACM Policy chart to install OpenShift Pipelines and OpenShift GitOps operators on the hub
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

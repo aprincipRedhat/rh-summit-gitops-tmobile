@@ -1,0 +1,12 @@
+{{- if or (not .Values.gitopsReposConfig.enabled) (eq (len .Values.gitopsReposConfig.vaultStaticSecrets) 0) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: summit-gitops-repos-config-sentinel
+  namespace: {{ .Values.gitopsReposConfig.defaultNamespace }}
+data:
+  chart: gitops-repos-config
+  note: >-
+    VaultStaticSecret manifests render when gitopsReposConfig.enabled is true and vaultStaticSecrets is non-empty.
+    Configure VaultAuth / VaultConnection separately (Vault Secrets Operator). Label destination Secrets for Argo CD repo types (e.g. argocd.argoproj.io/secret-type).
+{{- end }}

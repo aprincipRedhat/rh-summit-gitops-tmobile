@@ -1,0 +1,6 @@
+apiVersion: v2
+name: acm-day1
+description: Day 1 hub install — multicluster engine, ACM operator, MultiClusterHub, optional Vault Secrets Operator
+type: application
+version: 0.1.0
+appVersion: "2.15"

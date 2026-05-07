@@ -1,0 +1,473 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.tektonZtp.pipeline.name }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    BO2299-style cluster build: clone-repos → Redfish/Ansible → generate-cluster-files (helm) →
+    git-commit-and-mr → wait-for-merge → deploy-cluster (watch BMH/ACI/ClusterInstance on hub).
+  params:
+    - name: cluster-name
+      type: string
+    - name: gitops-repo-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: git-base-branch
+      type: string
+      default: main
+    - name: github-repo-slug
+      type: string
+      description: owner/repo for gh CLI (e.g. aprincipRedhat/rh-summit-gitops-tmobile)
+    - name: ztp-chart-relative-path
+      type: string
+      default: cluster-automation/ztp-spoke
+    - name: manifest-output-dir
+      type: string
+      default: spoke-clusters/dev/east/dev-hub-east-1/clusters
+    - name: skip-ansible
+      type: string
+      default: "false"
+    - name: ansible-tags
+      type: string
+      default: dns,ping,hardware,bmc
+    - name: git-user-name
+      type: string
+      default: "ZTP OCP Pipelines"
+    - name: git-user-email
+      type: string
+      default: "ztp-tekton@local"
+    - name: pr-title-prefix
+      type: string
+      default: "Add cluster"
+    - name: pr-title-prefix-modify
+      type: string
+      default: "Update cluster"
+    - name: skip-wait-for-merge
+      type: string
+      default: "false"
+      description: If true, skip polling GitHub PR (dev only).
+    - name: skip-deploy-watch
+      type: string
+      default: "false"
+      description: If true, skip hub oc watch after merge (dev only).
+  workspaces:
+    - name: shared
+      description: PVC holding cloned repo and rendered manifests
+  tasks:
+    - name: clone-repos
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-revision
+          value: $(params.git-revision)
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: gitops-repo-url
+          - name: git-revision
+          - name: cluster-name
+          - name: manifest-output-dir
+        steps:
+          - name: clone-and-resolve-values
+            image: {{ .Values.tektonZtp.images.git | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              cd "$ROOT"
+              rm -rf src
+              git clone --depth {{ get (.Values.tektonZtp.git | default dict) "cloneDepth" | default 50 }} --branch "$(params.git-revision)" "$(params.gitops-repo-url)" src
+              cd src
+              CLUSTER="$(params.cluster-name)"
+              TMP=/tmp/pv-matches.$$
+              trap 'rm -f "$TMP"' EXIT INT HUP
+              find . -path './.git' -prune -o -type f -path "*/99-pipeline-values/${CLUSTER}.yaml" -print \
+                | sort > "$TMP"
+              count=$(wc -l < "$TMP" | tr -cd '0123456789')
+              if [ "$count" -eq 0 ]; then
+                echo "No pipeline values file for cluster ${CLUSTER}" >&2
+                exit 1
+              fi
+              if [ "$count" -gt 1 ]; then
+                echo "Multiple pipeline values files for ${CLUSTER}:" >&2
+                cat "$TMP" >&2
+                exit 1
+              fi
+              REL=$(head -n 1 "$TMP")
+              ABS="$(pwd)/${REL#./}"
+              echo "$ABS" > "${ROOT}/pipeline-values.path"
+              echo "Resolved pipeline values: $ABS"
+              if echo "$REL" | grep -q '^spoke-clusters/'; then
+                ENV=$(echo "$REL" | cut -d/ -f2)
+                SITE=$(echo "$REL" | cut -d/ -f3)
+                HUB=$(echo "$REL" | cut -d/ -f4)
+                echo "ENV=${ENV}" > "${ROOT}/fleet-context.env"
+                echo "SITE=${SITE}" >> "${ROOT}/fleet-context.env"
+                echo "HUBNAME=${HUB}" >> "${ROOT}/fleet-context.env"
+              fi
+              CLUSTER_DIR="$(params.manifest-output-dir)/$(params.cluster-name)"
+              if [ -d "$CLUSTER_DIR" ] && [ -f "${CLUSTER_DIR}/manifests.yaml" ]; then
+                echo cluster-exists=true >> "${ROOT}/fleet-context.env"
+              else
+                echo cluster-exists=false >> "${ROOT}/fleet-context.env"
+              fi
+
+    - name: get-mac-addresses
+      runAfter: [clone-repos]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: skip-ansible
+          value: $(params.skip-ansible)
+        - name: ansible-tags
+          value: $(params.ansible-tags)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: skip-ansible
+          - name: ansible-tags
+        volumes:
+          - name: ansible-preflight-bundle
+            configMap:
+              name: {{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}
+        steps:
+          - name: ansible-preflight-with-values
+            image: {{ .Values.tektonZtp.images.ansible | quote }}
+            volumeMounts:
+              - name: ansible-preflight-bundle
+                mountPath: /ansible-cm
+                readOnly: true
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [[ "$(params.skip-ansible)" == "true" ]]; then
+                echo "skip-ansible=true — skipping Ansible (Redfish / DNS / ping)"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              export ANSIBLE_COLLECTIONS_PATH="${ROOT}/.ansible-collections"
+              RESTORE=/tmp/ansible-preflight
+              rm -rf "$RESTORE"
+              mkdir -p "$RESTORE"
+              shopt -s nullglob
+              for keypath in /ansible-cm/*; do
+                base=$(basename "$keypath")
+                rel=${base//__//}
+                mkdir -p "$RESTORE/$(dirname "$rel")"
+                cp "$keypath" "$RESTORE/$rel"
+              done
+              REQ="$RESTORE/requirements.yml"
+              SITE="$RESTORE/site.yml"
+              ansible-galaxy collection install -r "$REQ" -p "$ANSIBLE_COLLECTIONS_PATH"
+              ansible-playbook -i "localhost," -c local "$SITE" \
+                --tags "$(params.ansible-tags)" \
+                -e ansible_python_interpreter=/usr/bin/python3 \
+                -e @"${VALUES_FILE}"
+
+    - name: generate-cluster-files
+      runAfter: [get-mac-addresses]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: ztp-chart-relative-path
+          value: $(params.ztp-chart-relative-path)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: ztp-chart-relative-path
+          - name: manifest-output-dir
+        steps:
+          - name: validate-pipeline-values
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              EXPECT="$(params.cluster-name)"
+              if ! grep -qE '^cluster:' "$VALUES_FILE"; then
+                echo "pipeline values must define top-level cluster:" >&2
+                exit 1
+              fi
+              NAME_LINE=$(awk '/^cluster:/{show=1} show&&/^  name:/{print; exit}' "$VALUES_FILE")
+              VAL=$(echo "$NAME_LINE" | sed -E 's/^[^:]*:[[:space:]]*"?([^"#]+)"?.*/\1/')
+              if [ "$VAL" != "$EXPECT" ]; then
+                echo "cluster.name in pipeline values ($VAL) must match PipelineRun param cluster-name ($EXPECT)" >&2
+                exit 1
+              fi
+              if ! grep -qE '^nodes:' "$VALUES_FILE"; then
+                echo "pipeline values must define nodes: for Ansible / ClusterInstance" >&2
+                exit 1
+              fi
+          - name: helm-template-and-lint
+            image: {{ .Values.tektonZtp.images.helm | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              cd "$(workspaces.shared.path)/src"
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              OUT="$(params.manifest-output-dir)/$(params.cluster-name)"
+              mkdir -p "$OUT"
+              CHART="./$(params.ztp-chart-relative-path)"
+              helm lint "$CHART" -f "$VALUES_FILE"
+              helm template "$(params.cluster-name)" "$CHART" -f "$VALUES_FILE" \
+                > "${OUT}/manifests.yaml"
+
+    - name: git-commit-and-mr
+      runAfter: [generate-cluster-files]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-base-branch
+          value: $(params.git-base-branch)
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: git-user-name
+          value: $(params.git-user-name)
+        - name: git-user-email
+          value: $(params.git-user-email)
+        - name: pr-title-prefix
+          value: $(params.pr-title-prefix)
+        - name: pr-title-prefix-modify
+          value: $(params.pr-title-prefix-modify)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: manifest-output-dir
+          - name: gitops-repo-url
+          - name: git-base-branch
+          - name: github-repo-slug
+          - name: git-user-name
+          - name: git-user-email
+          - name: pr-title-prefix
+          - name: pr-title-prefix-modify
+        steps:
+          - name: push-and-pr
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache git github-cli bash
+              ROOT="$(workspaces.shared.path)"
+              cd "${ROOT}/src"
+              git config user.name "$(params.git-user-name)"
+              git config user.email "$(params.git-user-email)"
+              CLUSTER_PATH="$(params.manifest-output-dir)/$(params.cluster-name)/manifests.yaml"
+              if git cat-file -e "HEAD:${CLUSTER_PATH}" 2>/dev/null; then
+                CHANGE_TYPE="modify"
+                BRANCH="update-cluster-$(params.cluster-name)-$(date +%s)"
+                COMMIT_MSG="feat: update $(params.cluster-name) cluster manifests"
+                TITLE="$(params.pr-title-prefix-modify) $(params.cluster-name)"
+              else
+                CHANGE_TYPE="create"
+                BRANCH="add-cluster-$(params.cluster-name)-$(date +%s)"
+                COMMIT_MSG="feat: add $(params.cluster-name) cluster manifests"
+                TITLE="$(params.pr-title-prefix) $(params.cluster-name)"
+              fi
+              printf '%s' "$BRANCH" > "${ROOT}/ztp-branch.txt"
+              git checkout -b "$BRANCH"
+              git add "$(params.manifest-output-dir)/$(params.cluster-name)"
+              git commit -m "$COMMIT_MSG" || (git status; exit 1)
+              REMOTE="$(params.gitops-repo-url)"
+              case "$REMOTE" in
+                https://github.com/*)
+                  OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
+                  git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
+                  ;;
+                *)
+                  echo "Expected https://github.com/... clone URL for token-based push" >&2
+                  exit 1
+                  ;;
+              esac
+              git push -u origin "$BRANCH"
+              export GH_TOKEN
+              BODY_FILE="$(mktemp)"
+              {
+                echo "Change-type: ${CHANGE_TYPE}"
+                echo ""
+                echo "Rendered from cluster-automation/ztp-spoke via OpenShift Pipelines."
+                echo "Cluster path: $(params.manifest-output-dir)/$(params.cluster-name)/"
+              } > "$BODY_FILE"
+              gh pr create \
+                --repo "$(params.github-repo-slug)" \
+                --base "$(params.git-base-branch)" \
+                --head "$BRANCH" \
+                --title "$TITLE" \
+                --body-file "$BODY_FILE" 2>&1
+              rm -f "$BODY_FILE"
+              PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
+              if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
+                echo "$PR_NUM" > "${ROOT}/ztp-pr-number.txt"
+              else
+                echo "warning: could not resolve PR number for branch ${BRANCH}" >&2
+                : > "${ROOT}/ztp-pr-number.txt"
+              fi
+
+    - name: wait-for-merge
+      runAfter: [git-commit-and-mr]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: skip-wait-for-merge
+          value: $(params.skip-wait-for-merge)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: github-repo-slug
+          - name: skip-wait-for-merge
+        steps:
+          - name: poll-until-merged
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.skip-wait-for-merge)" = "true" ]; then
+                echo "skip-wait-for-merge=true — not waiting on PR"
+                exit 0
+              fi
+              apk add --no-cache github-cli bash
+              ROOT="$(workspaces.shared.path)"
+              export GH_TOKEN
+              POLL={{ .Values.tektonZtp.waitForMerge.pollIntervalSeconds | default 30 }}
+              MAX_ITER=$(( {{ .Values.tektonZtp.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
+              PR_NUM=""
+              if [ -f "${ROOT}/ztp-pr-number.txt" ]; then
+                PR_NUM=$(cat "${ROOT}/ztp-pr-number.txt")
+              fi
+              i=0
+              while [ "$i" -lt "$MAX_ITER" ]; do
+                if [ -n "$PR_NUM" ]; then
+                  STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
+                else
+                  BRANCH=$(cat "${ROOT}/ztp-branch.txt")
+                  STATE=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json state,number --jq '.[0].state' 2>/dev/null || echo OPEN)
+                fi
+                echo "PR state=${STATE}"
+                if [ "$STATE" = "MERGED" ]; then
+                  exit 0
+                fi
+                if [ "$STATE" = "CLOSED" ]; then
+                  echo "PR closed without merge" >&2
+                  exit 1
+                fi
+                i=$((i + 1))
+                sleep "$POLL"
+              done
+              echo "Timeout waiting for PR merge" >&2
+              exit 1
+
+    - name: deploy-cluster
+      runAfter: [wait-for-merge]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: skip-deploy-watch
+          value: $(params.skip-deploy-watch)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: skip-deploy-watch
+        steps:
+          - name: watch-provisioning
+            image: {{ .Values.tektonZtp.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [ "$(params.skip-deploy-watch)" = "true" ]; then
+                echo "skip-deploy-watch=true — skipping hub watch"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              CLUSTER="$(params.cluster-name)"
+              NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
+              VAL_NAME=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  name:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
+              if [ -z "${NS:-}" ] || [ -z "${CLUSTER:-}" ]; then
+                echo "Could not parse cluster.namespace from pipeline values or cluster-name param empty." >&2
+                exit 1
+              fi
+              if [ "${VAL_NAME}" != "${CLUSTER}" ]; then
+                echo "cluster.name in values (${VAL_NAME}) does not match cluster-name param (${CLUSTER})" >&2
+                exit 1
+              fi
+              echo "Watching ClusterInstance/${CLUSTER}, AgentClusterInstall, BareMetalHosts in namespace ${NS}"
+              POLL={{ .Values.tektonZtp.deployWatch.pollIntervalSeconds | default 30 }}
+              START_TS=$(date +%s)
+              MAX_SEC={{ .Values.tektonZtp.deployWatch.timeoutSeconds | default 14400 }}
+              while true; do
+                NOW=$(date +%s)
+                if [ $((NOW - START_TS)) -ge "$MAX_SEC" ]; then
+                  echo "Timeout waiting for cluster provisioning" >&2
+                  oc describe clusterinstance "$CLUSTER" -n "$NS" 2>/dev/null || true
+                  exit 1
+                fi
+                if oc get clusterinstance "$CLUSTER" -n "$NS" >/dev/null 2>&1; then
+                  READY=$(oc get clusterinstance "$CLUSTER" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                  echo "ClusterInstance Ready=${READY:-unknown}"
+                  if [ "$READY" = "True" ]; then
+                    exit 0
+                  fi
+                else
+                  echo "Waiting for ClusterInstance/${CLUSTER} to appear..."
+                fi
+                ACI=$(oc get agentclusterinstall -n "$NS" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+                if [ -n "$ACI" ]; then
+                  echo "AgentClusterInstall ${ACI}"
+                  oc get agentclusterinstall "$ACI" -n "$NS" -o jsonpath='{.status.debugInfo}' 2>/dev/null | head -c 200 || true
+                  echo ""
+                fi
+                oc get baremetalhost -n "$NS" -o wide 2>/dev/null || true
+                sleep "$POLL"
+              done

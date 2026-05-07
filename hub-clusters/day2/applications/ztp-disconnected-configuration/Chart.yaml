@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ztp-disconnected-configuration
+description: Hub cluster resources for disconnected OpenShift / OLM and mirrored images (ZTP-friendly)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,5 +1,0 @@
----
-- name: BMC license / entitlement check (placeholder)
-  ansible.builtin.debug:
-    msg: >-
-      Replace with vendor or Redfish licensing tasks when bmc_address and credentials are available.

@@ -1,0 +1,10 @@
+# Ensures at least one resource exists when proxy/trusted CA features are disabled (empty Helm outputs can confuse GitOps sync).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: summit-hub-platform-day2-sentinel
+  namespace: openshift-config
+data:
+  chart: hub-platform-day2
+  note: >-
+    Functional manifests render when hubPlatform.proxy, trustedCA, apiServer, or ingressController features are enabled in 99-environments values.

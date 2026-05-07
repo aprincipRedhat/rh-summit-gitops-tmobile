@@ -1,0 +1,305 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.tektonBulkZtp.pipeline.name }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    List ACM ManagedClusters (oc get managedcluster), then create PipelineRuns of the ZTP OpenShift Pipelines
+    pipeline in waves of max-concurrent until each wave completes (Succeeded or Failed).
+  params:
+    - name: max-concurrent
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.maxConcurrent | toString | quote }}
+    - name: exclude-managed-clusters
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.excludeManagedClusters | quote }}
+    - name: managed-cluster-label-selector
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.managedClusterLabelSelector | quote }}
+    - name: target-pipeline-name
+      type: string
+      default: {{ .Values.tektonBulkZtp.target.pipelineName | quote }}
+    - name: target-pipeline-namespace
+      type: string
+      default: {{ .Values.tektonBulkZtp.target.pipelineNamespace | quote }}
+    - name: child-service-account-name
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.childServiceAccountName | quote }}
+    - name: child-wait-timeout-seconds
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.childWaitTimeoutSeconds | quote }}
+    - name: child-gitops-repo-url
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.gitopsRepoUrl | quote }}
+    - name: child-git-revision
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.gitRevision | quote }}
+    - name: child-git-base-branch
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.gitBaseBranch | quote }}
+    - name: child-github-repo-slug
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.githubRepoSlug | quote }}
+    - name: child-ztp-chart-relative-path
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.ztpChartRelativePath | quote }}
+    - name: child-manifest-output-dir
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.manifestOutputDir | quote }}
+    - name: child-skip-ansible
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.skipAnsible | quote }}
+    - name: child-ansible-tags
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.ansibleTags | quote }}
+    - name: child-git-user-name
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.gitUserName | quote }}
+    - name: child-git-user-email
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.gitUserEmail | quote }}
+    - name: child-pr-title-prefix
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.prTitlePrefix | quote }}
+    - name: child-pr-title-prefix-modify
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.prTitlePrefixModify | quote }}
+    - name: child-skip-wait-for-merge
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.skipWaitForMerge | quote }}
+    - name: child-skip-deploy-watch
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.skipDeployWatch | quote }}
+  tasks:
+    - name: spawn-ztp-pipelineruns
+      taskSpec:
+        params:
+          - name: max-concurrent
+          - name: exclude-managed-clusters
+          - name: managed-cluster-label-selector
+          - name: target-pipeline-name
+          - name: target-pipeline-namespace
+          - name: child-service-account-name
+          - name: child-wait-timeout-seconds
+          - name: child-gitops-repo-url
+          - name: child-git-revision
+          - name: child-git-base-branch
+          - name: child-github-repo-slug
+          - name: child-ztp-chart-relative-path
+          - name: child-manifest-output-dir
+          - name: child-skip-ansible
+          - name: child-ansible-tags
+          - name: child-git-user-name
+          - name: child-git-user-email
+          - name: child-pr-title-prefix
+          - name: child-pr-title-prefix-modify
+          - name: child-skip-wait-for-merge
+          - name: child-skip-deploy-watch
+        steps:
+          - name: bulk-spawn
+            image: {{ .Values.tektonBulkZtp.images.cli | quote }}
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              NS="$(params.target-pipeline-namespace)"
+              TARGET="$(params.target-pipeline-name)"
+              MAX="$(params.max-concurrent)"
+              WAIT="$(params.child-wait-timeout-seconds)"
+              CSA="$(params.child-service-account-name)"
+              PARENT="$(context.pipelineRun.name)"
+              LABEL_SEL="$(params.managed-cluster-label-selector)"
+
+              if ! [[ "$MAX" =~ ^[1-9][0-9]*$ ]]; then
+                echo "max-concurrent must be a positive integer, got: ${MAX}" >&2
+                exit 1
+              fi
+
+              mapfile -t RAW < <(
+                if [[ -n "$LABEL_SEL" ]]; then
+                  oc get managedcluster -l "$LABEL_SEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null
+                else
+                  oc get managedcluster -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null
+                fi
+              )
+
+              declare -a CLUSTERS=()
+              IFS=',' read -ra EXCLUDES <<< "$(params.exclude-managed-clusters)"
+              for c in "${RAW[@]}"; do
+                [[ -z "$c" ]] && continue
+                skip=false
+                for e in "${EXCLUDES[@]}"; do
+                  e="${e//[[:space:]]/}"
+                  [[ -z "$e" ]] && continue
+                  if [[ "$c" == "$e" ]]; then skip=true; break; fi
+                done
+                $skip && continue
+                CLUSTERS+=("$c")
+              done
+
+              if [[ ${#CLUSTERS[@]} -eq 0 ]]; then
+                echo "No ManagedClusters after excludes / label filter — nothing to do."
+                exit 0
+              fi
+
+              echo "Bulk parent: ${PARENT}"
+              echo "Clusters (${#CLUSTERS[@]}): ${CLUSTERS[*]}"
+              echo "Wave size (max concurrent child PipelineRuns): ${MAX}"
+
+              create_child() {
+                local cluster="$1"
+                local safe="${cluster//[^a-zA-Z0-9-]/-}"
+                safe="${safe:0:40}"
+                local pr_name="bztp-${safe}-${RANDOM}"
+
+                echo ">>> Creating PipelineRun ${pr_name} for ManagedCluster ${cluster}" >&2
+
+                printf '%s\n' \
+                  "apiVersion: tekton.dev/v1" \
+                  "kind: PipelineRun" \
+                  "metadata:" \
+                  "  name: ${pr_name}" \
+                  "  namespace: ${NS}" \
+                  "  labels:" \
+                  "    bulk-ztp.io/parent-run: ${PARENT}" \
+                  "    bulk-ztp.io/managed-cluster: ${cluster}" \
+                  "spec:" \
+                  "  pipelineRef:" \
+                  "    name: ${TARGET}" \
+                  "  taskRunTemplate:" \
+                  "    serviceAccountName: ${CSA}" \
+                  "  podTemplate:" \
+                  "    securityContext:" \
+                  "      fsGroup: 65532" \
+                  "  params:" \
+                  "    - name: cluster-name" \
+                  "      value: \"${cluster}\"" \
+                  "    - name: gitops-repo-url" \
+                  "      value: \"$(params.child-gitops-repo-url)\"" \
+                  "    - name: git-revision" \
+                  "      value: \"$(params.child-git-revision)\"" \
+                  "    - name: git-base-branch" \
+                  "      value: \"$(params.child-git-base-branch)\"" \
+                  "    - name: github-repo-slug" \
+                  "      value: \"$(params.child-github-repo-slug)\"" \
+                  "    - name: ztp-chart-relative-path" \
+                  "      value: \"$(params.child-ztp-chart-relative-path)\"" \
+                  "    - name: manifest-output-dir" \
+                  "      value: \"$(params.child-manifest-output-dir)\"" \
+                  "    - name: skip-ansible" \
+                  "      value: \"$(params.child-skip-ansible)\"" \
+                  "    - name: ansible-tags" \
+                  "      value: \"$(params.child-ansible-tags)\"" \
+                  "    - name: git-user-name" \
+                  "      value: \"$(params.child-git-user-name)\"" \
+                  "    - name: git-user-email" \
+                  "      value: \"$(params.child-git-user-email)\"" \
+                  "    - name: pr-title-prefix" \
+                  "      value: \"$(params.child-pr-title-prefix)\"" \
+                  "    - name: pr-title-prefix-modify" \
+                  "      value: \"$(params.child-pr-title-prefix-modify)\"" \
+                  "    - name: skip-wait-for-merge" \
+                  "      value: \"$(params.child-skip-wait-for-merge)\"" \
+                  "    - name: skip-deploy-watch" \
+                  "      value: \"$(params.child-skip-deploy-watch)\"" \
+                  "  workspaces:" \
+                  "    - name: shared" \
+                  "      volumeClaimTemplate:" \
+                  "        metadata:" \
+                  "          name: ztp-shared-pvc" \
+                  "        spec:" \
+                  "          accessModes: [\"ReadWriteOnce\"]" \
+                  "          resources:" \
+                  "            requests:" \
+                  "              storage: 2Gi" \
+                  | oc apply -f - >/dev/null
+
+                printf '%s\n' "$pr_name"
+              }
+
+              wait_child() {
+                local pr=$1
+                local end_ts=$(( $(date +%s) + WAIT ))
+                while true; do
+                  if (( $(date +%s) > end_ts )); then
+                    echo "Timeout waiting for ${pr}" >&2
+                    return 1
+                  fi
+                  st=$(oc get pipelinerun "$pr" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || true)
+                  if [[ "$st" == "True" ]]; then
+                    echo "=== ${pr}: Succeeded ==="
+                    return 0
+                  fi
+                  if [[ "$st" == "False" ]]; then
+                    echo "=== ${pr}: Failed (Succeeded=False) ===" >&2
+                    oc get pipelinerun "$pr" -n "$NS" -o yaml | tail -80 >&2 || true
+                    return 1
+                  fi
+                  sleep 20
+                done
+              }
+
+              idx=0
+              total=${#CLUSTERS[@]}
+              while (( idx < total )); do
+                declare -a wave_prs=()
+                for ((w=0; w<MAX && idx<total; w++, idx++)); do
+                  c="${CLUSTERS[$idx]}"
+                  pr=$(create_child "$c")
+                  wave_prs+=("$pr")
+                done
+                echo "--- Waiting for wave (${#wave_prs[@]} runs) ---"
+                failed=false
+                for pr in "${wave_prs[@]}"; do
+                  wait_child "$pr" || failed=true
+                done
+                if $failed; then
+                  echo "One or more child PipelineRuns failed — stopping bulk pipeline." >&2
+                  exit 1
+                fi
+              done
+
+              echo "All ${total} child PipelineRuns completed successfully."
+      params:
+        - name: max-concurrent
+          value: $(params.max-concurrent)
+        - name: exclude-managed-clusters
+          value: $(params.exclude-managed-clusters)
+        - name: managed-cluster-label-selector
+          value: $(params.managed-cluster-label-selector)
+        - name: target-pipeline-name
+          value: $(params.target-pipeline-name)
+        - name: target-pipeline-namespace
+          value: $(params.target-pipeline-namespace)
+        - name: child-service-account-name
+          value: $(params.child-service-account-name)
+        - name: child-wait-timeout-seconds
+          value: $(params.child-wait-timeout-seconds)
+        - name: child-gitops-repo-url
+          value: $(params.child-gitops-repo-url)
+        - name: child-git-revision
+          value: $(params.child-git-revision)
+        - name: child-git-base-branch
+          value: $(params.child-git-base-branch)
+        - name: child-github-repo-slug
+          value: $(params.child-github-repo-slug)
+        - name: child-ztp-chart-relative-path
+          value: $(params.child-ztp-chart-relative-path)
+        - name: child-manifest-output-dir
+          value: $(params.child-manifest-output-dir)
+        - name: child-skip-ansible
+          value: $(params.child-skip-ansible)
+        - name: child-ansible-tags
+          value: $(params.child-ansible-tags)
+        - name: child-git-user-name
+          value: $(params.child-git-user-name)
+        - name: child-git-user-email
+          value: $(params.child-git-user-email)
+        - name: child-pr-title-prefix
+          value: $(params.child-pr-title-prefix)
+        - name: child-pr-title-prefix-modify
+          value: $(params.child-pr-title-prefix-modify)
+        - name: child-skip-wait-for-merge
+          value: $(params.child-skip-wait-for-merge)
+        - name: child-skip-deploy-watch
+          value: $(params.child-skip-deploy-watch)

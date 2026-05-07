@@ -1,0 +1,13 @@
+# Hub identity for this GitOps repo clone — drives child Applications' helm.valueFiles into
+# hub-clusters/day2/99-environments/<environment>/<site>/<clusterName>/values.yaml and ACM policies path.
+# Keep repoURL/targetRevision aligned with hub-clusters/day2/app-of-apps/values.yaml when bootstrapping.
+repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+targetRevision: main
+
+hub:
+  environment: dev
+  site: east
+  clusterName: dev-hub-east-1
+
+acmPolicies:
+  enabled: true

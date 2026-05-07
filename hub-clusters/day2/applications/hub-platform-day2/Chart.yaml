@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hub-platform-day2
+description: Optional hub Day 2 platform settings (cluster Proxy, trusted CA) driven by 99-environments values
+type: application
+version: 0.1.0
+appVersion: "1.0"

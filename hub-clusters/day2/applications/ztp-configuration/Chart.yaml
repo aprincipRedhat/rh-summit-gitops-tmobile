@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ztp-configuration
+description: Hub-side ztp-common namespace and baseline resources for ZTP (sync before policies that reference this namespace)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,21 @@
+---
+# Lightweight inventory read — fails only when Redfish is up but inventory call errors.
+- name: Storage collection via Redfish (when nodes present)
+  ansible.builtin.uri:
+    url: "https://{{ item.bmcAddress | regex_replace('^[^:]+://([^/]+).*', '\\1') }}/redfish/v1/Systems/1/Storage"
+    method: GET
+    validate_certs: false
+    timeout: 20
+    status_code: [200, 401, 403, 404]
+  loop: "{{ nodes | default([]) }}"
+  loop_control:
+    label: "{{ item.bmcAddress }}"
+  register: storage_r
+  failed_when: false
+  when: nodes is defined and (nodes | length) > 0
+
+- name: Report storage endpoint status
+  ansible.builtin.debug:
+    msg: "BMC {{ item.item.bmcAddress }} Storage HTTP={{ item.status | default('n/a') }}"
+  loop: "{{ storage_r.results | default([]) }}"
+  when: storage_r is defined

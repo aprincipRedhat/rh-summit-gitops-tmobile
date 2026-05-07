@@ -1,0 +1,23 @@
+hubPlatform:
+  proxy:
+    enabled: false
+    httpProxy: ""
+    httpsProxy: ""
+    noProxy: ""
+  trustedCA:
+    enabled: false
+    name: user-ca-bundle
+    bundlePem: ""
+  # APIServer serving certs — TLS secrets must exist in openshift-config (tls.crt, tls.key).
+  apiServer:
+    enabled: false
+    namedCertificates: []
+    # - names:
+    #     - api.cluster.example.com
+    #   secretName: apiserver-custom-tls
+  # Default Ingress certificate — secret must exist in openshift-ingress (tls.crt, tls.key, ca.crt optional).
+  ingressController:
+    enabled: false
+    name: default
+    defaultCertificate:
+      secretName: ""

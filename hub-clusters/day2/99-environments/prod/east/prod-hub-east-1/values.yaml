@@ -1,0 +1,164 @@
+hubPlatform:
+  proxy:
+    enabled: false
+    httpProxy: ""
+    httpsProxy: ""
+    noProxy: ""
+  trustedCA:
+    enabled: false
+    name: user-ca-bundle
+    bundlePem: ""
+  apiServer:
+    enabled: false
+    namedCertificates: []
+  ingressController:
+    enabled: false
+    name: default
+    defaultCertificate:
+      secretName: ""
+
+ztpConfiguration:
+  namespace: ztp-common
+
+ztpDisconnected:
+  enabled: false
+  operatorHub:
+    enabled: false
+    disableAllDefaultSources: true
+  imageDigestMirrorSets: []
+  imageTagMirrorSets: []
+  catalogSources: []
+  # Enable configMap after oc-mirror PR merges IDMS/ITMS values (mirror YAML for Assisted Installer / ZTP; hub does not apply IDMS/ITMS CRs from this chart).
+  configMap:
+    enabled: false
+    name: ztp-disconnected-mirror-artifacts
+    namespace: openshift-config
+
+gitopsReposConfig:
+  enabled: false
+  defaultNamespace: openshift-gitops
+  vaultStaticSecrets: []
+
+operators:
+  openshiftGitOps:
+    channel: stable
+    startingCSV: openshift-gitops-operator.v1.15.0
+    approvedCSVs:
+      - openshift-gitops-operator.v1.15.0
+  openshiftPipelines:
+    channel: latest
+    startingCSV: openshift-pipelines-operator.v1.15.2
+    approvedCSVs:
+      - openshift-pipelines-operator.v1.15.2
+
+tektonZtp:
+  git:
+    cloneDepth: 50
+  serviceAccount:
+    name: pipeline-ztp-gitops
+  github:
+    secretName: github-tekton-token
+    secretKey: token
+  ansible:
+    preflightConfigMapName: ztp-ansible-preflight
+  waitForMerge:
+    pollIntervalSeconds: 30
+    timeoutSeconds: 7200
+  deployWatch:
+    pollIntervalSeconds: 30
+    timeoutSeconds: 14400
+  images:
+    git: docker.io/alpine/git:v2.43.0
+    ansible: quay.io/ansible/ansible-runner:latest
+    helm: docker.io/alpine/helm:3.14.4
+    alpineTools: docker.io/alpine:3.19
+    cli: quay.io/openshift/origin-cli:4.15
+  pipeline:
+    name: ztp-cluster-render-pr
+  pipelineRun:
+    example:
+      enabled: false
+      generateName: ztp-cluster-demo-
+      clusterName: prod-east-us-1
+      gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+      gitRevision: main
+      gitBaseBranch: main
+      githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+      ztpChartRelativePath: cluster-automation/ztp-spoke
+      manifestOutputDir: spoke-clusters/prod/east/prod-hub-east-1/clusters
+      skipAnsible: "true"
+      ansibleTags: dns
+      prTitlePrefixModify: "Update cluster"
+
+tektonBulkZtp:
+  serviceAccount:
+    name: pipeline-bulk-ztp
+  images:
+    cli: quay.io/openshift/origin-cli:4.15
+  pipeline:
+    name: bulk-ztp-managed-clusters
+  target:
+    pipelineName: ztp-cluster-render-pr
+    pipelineNamespace: openshift-pipelines
+  bulk:
+    maxConcurrent: 3
+    excludeManagedClusters: local-cluster
+    managedClusterLabelSelector: ""
+    childServiceAccountName: pipeline-ztp-gitops
+    childWaitTimeoutSeconds: "7200"
+  childDefaults:
+    gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    gitRevision: main
+    gitBaseBranch: main
+    githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+    ztpChartRelativePath: cluster-automation/ztp-spoke
+    manifestOutputDir: spoke-clusters/prod/east/prod-hub-east-1/clusters
+    skipAnsible: "true"
+    ansibleTags: dns,ping
+    gitUserName: ZTP OCP Pipelines
+    gitUserEmail: ztp-tekton@local
+    prTitlePrefix: "Add cluster"
+    prTitlePrefixModify: "Update cluster"
+    skipWaitForMerge: "false"
+    skipDeployWatch: "false"
+  pipelineRun:
+    example:
+      enabled: false
+      generateName: bulk-ztp-demo-
+
+tektonMirror:
+  pipeline:
+    name: ocp-registry-mirror
+    mirrorImage: quay.io/example/oc-mirror-runner:latest
+  images:
+    alpineTools: docker.io/alpine:3.19
+  serviceAccount:
+    name: pipeline-oc-mirror
+  rbac:
+    configMapName: mirror-imageset-configuration
+    secretName: mirror-registry-pullsecret
+  github:
+    secretName: gitops-github-token
+    secretKey: GH_TOKEN
+  gitSync:
+    skip: "false"
+    yqVersion: v4.44.3
+    ghVersion: "2.49.0"
+    gitopsRepoUrl: https://github.com/example-org/example-gitops.git
+    gitRevision: main
+    gitBaseBranch: main
+    githubRepoSlug: example-org/example-gitops
+    hubValuesRelativePath: hub-clusters/day2/99-environments/prod/east/prod-hub-east-1/values.yaml
+    gitUserName: oc-mirror Bot
+    gitUserEmail: oc-mirror@local
+  imagesetConfigMapKey: ImageSetConfiguration.yaml
+  exampleConfigMap:
+    enabled: true
+  pipelineRun:
+    example:
+      enabled: true
+      generateName: ocp-registry-mirror-demo-
+      destRegistry: docker://registry.example.com:5000/ocp-mirror
+      extraFlags: ""
+      skipGitSync: "false"
+      sharedStorage: 5Gi

@@ -1,0 +1,35 @@
+# One OpenShift GitOps Application per folder under clustersPath/* (e.g. each spoke cluster config).
+# Each app syncs that Git path to the hub cluster; the target namespace is the folder name.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ .Values.applicationSet.name }}
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ .Values.repoURL | quote }}
+        revision: {{ .Values.targetRevision | quote }}
+        directories:
+          - path: {{ printf "%s/*" .Values.clustersPath | quote }}
+  template:
+    metadata:
+      name: '{{`{{.path.basename}}`}}'
+    spec:
+      project: default
+      source:
+        repoURL: {{ .Values.repoURL | quote }}
+        targetRevision: {{ .Values.targetRevision | quote }}
+        path: '{{`{{.path.path}}`}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{`{{.path.basename}}`}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

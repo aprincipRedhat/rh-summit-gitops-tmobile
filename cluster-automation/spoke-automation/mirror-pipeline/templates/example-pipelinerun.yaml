@@ -1,0 +1,52 @@
+{{- if .Values.tektonMirror.pipelineRun.example.enabled }}
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: {{ .Values.tektonMirror.pipelineRun.example.generateName | quote }}
+  namespace: openshift-pipelines
+spec:
+  pipelineRef:
+    name: {{ .Values.tektonMirror.pipeline.name }}
+  taskRunTemplate:
+    serviceAccountName: {{ .Values.tektonMirror.serviceAccount.name }}
+  podTemplate:
+    securityContext:
+      fsGroup: 65532
+  params:
+    - name: dest-registry
+      value: {{ .Values.tektonMirror.pipelineRun.example.destRegistry | quote }}
+    - name: extra-flags
+      value: {{ .Values.tektonMirror.pipelineRun.example.extraFlags | quote }}
+    - name: skip-git-sync
+      value: {{ .Values.tektonMirror.pipelineRun.example.skipGitSync | quote }}
+    - name: gitops-repo-url
+      value: {{ .Values.tektonMirror.gitSync.gitopsRepoUrl | quote }}
+    - name: git-revision
+      value: {{ .Values.tektonMirror.gitSync.gitRevision | quote }}
+    - name: git-base-branch
+      value: {{ .Values.tektonMirror.gitSync.gitBaseBranch | quote }}
+    - name: github-repo-slug
+      value: {{ .Values.tektonMirror.gitSync.githubRepoSlug | quote }}
+    - name: hub-values-relative-path
+      value: {{ .Values.tektonMirror.gitSync.hubValuesRelativePath | quote }}
+    - name: git-user-name
+      value: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
+    - name: git-user-email
+      value: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+  workspaces:
+    - name: imageset
+      configMap:
+        name: {{ .Values.tektonMirror.rbac.configMapName }}
+    - name: registry-auth
+      secret:
+        secretName: {{ .Values.tektonMirror.rbac.secretName }}
+    - name: shared
+      volumeClaimTemplate:
+        metadata:
+          name: mirror-shared-pvc
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: {{ .Values.tektonMirror.pipelineRun.example.sharedStorage | quote }}
+{{- end }}
