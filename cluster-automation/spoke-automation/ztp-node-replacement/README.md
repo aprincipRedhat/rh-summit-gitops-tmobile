@@ -18,6 +18,8 @@ Tekton **Pipeline** for bare-metal **node replacement**: suppress the marked nod
 
 Images, GitHub Secret names, Ansible ConfigMap, and timeouts align with **`tektonNodeReplacement.*`** in that hub values file (defaults in this chart’s **`values.yaml`**).
 
+**Diagrams** — Mermaid overview for this pipeline is in the **[cluster-automation README](../../README.md#pipeline-diagrams)** (`ztp-node-replacement` subsection). Source copies (`.mmd`) and optional rendered `.svg` files remain under [`diagrams/`](diagrams/) for tooling.
+
 ## Flow
 
 1. **`clone-repos`** — Resolve **`99-pipeline-values/<cluster>.yaml`** (same discovery rules as **`ztp-pipeline`**).
