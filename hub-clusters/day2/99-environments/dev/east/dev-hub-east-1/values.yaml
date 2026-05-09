@@ -42,6 +42,14 @@ ztpDisconnected:
 tenantMirrorTriggers:
   enabled: false
 
+# VaultConnection/VaultAuth Application — enable after substituting Day1 vault-bootstrap-credentials placeholders.
+vaultHubConfiguration:
+  enabled: false
+
+# Hub-only ACM Policy: Tekton Vault Secret replication from openshift-config (app-acm-hub-vault-credential-sync).
+vaultHubCredentialSync:
+  enabled: false
+
 tektonNodeReplacement:
   enabled: false
 
@@ -63,6 +71,8 @@ operators:
       - openshift-pipelines-operator.v1.15.2
 
 tektonZtp:
+  vault:
+    secretName: vault-tekton-credentials
   git:
     cloneDepth: 50
   manualApproval:

@@ -27,6 +27,12 @@ acmSpokeClusters:
 tenantMirrorTriggers:
   enabled: false
 
+vaultHubConfiguration:
+  enabled: false
+
+vaultHubCredentialSync:
+  enabled: false
+
 tektonNodeReplacement:
   enabled: false
 
@@ -62,6 +68,8 @@ operators:
       - openshift-pipelines-operator.v1.15.2
 
 tektonZtp:
+  vault:
+    secretName: vault-tekton-credentials
   git:
     cloneDepth: 50
   manualApproval:

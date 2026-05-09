@@ -8,7 +8,7 @@ Hub lifecycle content for this GitOps repo.
 |-----------|---------|
 | `day1/` | Day 1 Helm chart: ACM / MCE / `MultiClusterHub` / optional Vault Secrets Operator (`acm-day1`). |
 | `day2/app-of-apps/` | Bootstrap chart — root `Application` plus `ApplicationSet` for spoke manifest folders. |
-| `day2/applications/` | Helm workload charts child Applications point at (`operator-installations`, `policy-generator-gitops-patch`, `ztp-configuration`, `ztp-disconnected-configuration`, `hub-platform-day2`). |
+| `day2/applications/` | Helm workload charts child Applications point at (`operator-installations`, `policy-generator-gitops-patch`, `ztp-configuration`, `ztp-disconnected-configuration`, `hub-platform-day2`, `vault-hub-configuration`). |
 | `day2/managed-applications/` | Helm chart that renders OpenShift GitOps `Application` CRs (hub segment in `values.yaml`). |
 | `day2/99-environments/` | Per-hub `values.yaml` files consumed via Argo `helm.valueFiles` (`<env>/<site>/<hub-cluster-name>/values.yaml`). |
 

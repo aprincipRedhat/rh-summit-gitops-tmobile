@@ -1,4 +1,4 @@
-# Optional: set baseDomain (or base_domain) so Ansible dns_check can resolve api.<cluster.name>.<domain>
+# Optional: baseDomain for Ansible dns_check (api.<cluster.name>.<domain>)
 # baseDomain: example.com
 
 ztpCommon:
@@ -36,25 +36,44 @@ cluster:
 pullSecretRef:
   name: pull-secret
 
-bmcSecretRef:
-  name: bmc-dev-east-us-1
+# OpenShift / Assisted-style networking — rendered under ClusterInstance.spec (keys must match your ACM/SiteConfig version).
+clusterNetworking:
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+  machineNetwork:
+    - cidr: 192.168.20.0/24
+
+# Inventory: hostnames only — Tekton merges Redfish-discovered nodes (MACs, BMC secret refs) before helm template.
+nodeHostnames:
+  - master-0
+
+clusterDefaults:
+  nodeRole: master
+  rootDeviceHints:
+    deviceName: /dev/disk/by-id/scsi-0000
+  nicMapping:
+    logicalName: eno1
+    redfishMemberMatch: Embedded
+
+bmcAddressTemplate: "redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1"
+
+vault:
+  enabled: true
+  mount: kv-v2
+  vaultAuthRef: vault-auth-spoke
+  # printf-style; %s becomes each hostname (KV-v2 path without mount prefix).
+  bmcCredentialsVaultPathPattern: "vault-root/data/dev/east/dev-hub-east-1/bmc/%s"
+
+assistedDeployment:
+  pullSecret:
+    vaultPath: vault-root/data/dev/east/dev-hub-east-1/assisted-deployment-pull-secret
 
 templateRefs:
   - name: example-sno-template
     namespace: openshift-siteconfig
-
-nodes:
-  - hostname: master-0
-    role: master
-    nodeNetwork:
-      interfaces:
-        - name: eno1
-          macAddress: "aa:bb:cc:dd:ee:01"
-    rootDeviceHints:
-      deviceName: /dev/disk/by-id/scsi-0000
-    bmcAddress: redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1
-    bmcCredentialsName:
-      name: bmc-dev-east-us-1
 
 extraManifestsRefs: []
 

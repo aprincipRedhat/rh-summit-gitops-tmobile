@@ -38,3 +38,13 @@ vaultSecretsOperator:
     installPlanApproval: Automatic
     source: certified-operators
     sourceNamespace: openshift-marketplace
+
+# Placeholder Secret for Vault API creds / secret id material — replace values before enabling ACM sync + Tekton (SealedSecret or oc replace).
+vaultBootstrap:
+  enabled: true
+  namespace: vault-secrets-operator
+  secretName: vault-bootstrap-credentials
+  stringData:
+    VAULT_ADDR: "https://vault.example.com:8200"
+    VAULT_TOKEN: "REPLACE_ME"
+    secretId: "REPLACE_ME"

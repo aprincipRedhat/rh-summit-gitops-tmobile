@@ -2,7 +2,6 @@ ztpCommon:
   enabled: true
   namespace: ztp-common
 
-# Keys match PolicyGenerator OperatorPolicy subscription names; rendered into ztp-common ConfigMap for hub template lookups.
 operators:
   openshift-gitops-operator:
     channel: stable
@@ -34,25 +33,41 @@ cluster:
 pullSecretRef:
   name: pull-secret
 
-bmcSecretRef:
-  name: bmc-prod-east-us-1
+clusterNetworking:
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+  machineNetwork:
+    - cidr: 192.168.30.0/24
+
+nodeHostnames:
+  - master-0
+
+clusterDefaults:
+  nodeRole: master
+  rootDeviceHints:
+    deviceName: /dev/disk/by-id/scsi-0000
+  nicMapping:
+    logicalName: eno1
+    redfishMemberMatch: Embedded
+
+bmcAddressTemplate: "redfish-virtualmedia://192.168.30.11/redfish/v1/Systems/1"
+
+vault:
+  enabled: true
+  mount: kv-v2
+  vaultAuthRef: vault-auth-spoke
+  bmcCredentialsVaultPathPattern: "vault-root/data/prod/east/prod-hub-east-1/bmc/%s"
+
+assistedDeployment:
+  pullSecret:
+    vaultPath: vault-root/data/prod/east/prod-hub-east-1/assisted-deployment-pull-secret
 
 templateRefs:
   - name: example-sno-template
     namespace: openshift-siteconfig
-
-nodes:
-  - hostname: master-0
-    role: master
-    nodeNetwork:
-      interfaces:
-        - name: eno1
-          macAddress: "aa:bb:cc:dd:ee:02"
-    rootDeviceHints:
-      deviceName: /dev/disk/by-id/scsi-0000
-    bmcAddress: redfish-virtualmedia://192.168.30.11/redfish/v1/Systems/1
-    bmcCredentialsName:
-      name: bmc-prod-east-us-1
 
 extraManifestsRefs: []
 

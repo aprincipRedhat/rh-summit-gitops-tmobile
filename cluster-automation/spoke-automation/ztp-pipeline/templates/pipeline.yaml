@@ -5,9 +5,9 @@ metadata:
   namespace: openshift-pipelines
 spec:
   description: >-
-    BO2299-style cluster build: clone-repos → optional SDN / Ansible preflight → optional manual gate →
-    generate-cluster-files (helm) → git-commit-and-mr → wait-for-merge → deploy-cluster → optional
-    spoke validation and kube-burner.
+    BO2299-style cluster build: clone-repos → optional SDN / Ansible (DNS, ping, Redfish MAC discovery) →
+    optional manual gate → merge pipeline values + generate-cluster-files (helm) → git-commit-and-mr →
+    wait-for-merge → deploy-cluster → optional spoke validation and kube-burner.
   params:
     - name: cluster-name
       type: string
@@ -99,6 +99,12 @@ spec:
       type: string
       default: "false"
       description: If true, skip hub oc watch after merge (dev only).
+    - name: run-mac-discovery
+      type: string
+      default: "true"
+      description: >-
+        When true, Ansible runs mac-discovery (Vault + Redfish) for hostname-only pipeline values.
+        Set false only when nodes[] already include MACs or discovery runs out-of-band.
   workspaces:
     - name: shared
       description: PVC holding cloned repo and rendered manifests
@@ -208,7 +214,7 @@ spec:
               curl -fsS --max-time 30 "$URL" >/dev/null
               echo "SDN precheck OK"
 
-    - name: get-mac-addresses
+    - name: discover-node-network
       runAfter: [preflight-sdn]
       workspaces:
         - name: shared
@@ -222,6 +228,8 @@ spec:
           value: $(params.run-hardware-validation)
         - name: run-network-connectivity-test
           value: $(params.run-network-connectivity-test)
+        - name: run-mac-discovery
+          value: $(params.run-mac-discovery)
       taskSpec:
         workspaces:
           - name: shared
@@ -230,6 +238,7 @@ spec:
           - name: ansible-tags
           - name: run-hardware-validation
           - name: run-network-connectivity-test
+          - name: run-mac-discovery
         volumes:
           - name: ansible-preflight-bundle
             configMap:
@@ -237,6 +246,11 @@ spec:
         steps:
           - name: ansible-preflight-with-values
             image: {{ .Values.tektonZtp.images.ansible | quote }}
+{{- if ((.Values.tektonZtp.vault | default dict).secretName | default "") }}
+            envFrom:
+              - secretRef:
+                  name: {{ .Values.tektonZtp.vault.secretName | quote }}
+{{- end }}
             volumeMounts:
               - name: ansible-preflight-bundle
                 mountPath: /ansible-cm
@@ -245,12 +259,18 @@ spec:
               #!/bin/bash
               set -euo pipefail
               if [[ "$(params.skip-ansible)" == "true" ]]; then
-                echo "skip-ansible=true — skipping Ansible (Redfish / DNS / ping)"
+                echo "skip-ansible=true — skipping Ansible (Redfish / DNS / ping / MAC discovery)"
                 exit 0
               fi
               ROOT="$(workspaces.shared.path)"
               VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
               TAG_OVERRIDE="$(params.ansible-tags)"
+              if [[ "$(params.run-mac-discovery)" == "true" ]]; then
+                export SKIP_MAC_DISCOVERY=false
+              else
+                export SKIP_MAC_DISCOVERY=true
+              fi
+              export MAC_DISCOVERY_OUTPUT="${ROOT}/discovered-nodes.yaml"
               if [[ -n "${TAG_OVERRIDE// }" ]]; then
                 TAGS="${TAG_OVERRIDE}"
                 echo "Using explicit ansible-tags: ${TAGS}"
@@ -258,6 +278,7 @@ spec:
                 TAGS="dns"
                 [[ "$(params.run-hardware-validation)" == "true" ]] && TAGS="${TAGS},hardware,bmc,redfish"
                 [[ "$(params.run-network-connectivity-test)" == "true" ]] && TAGS="${TAGS},ping"
+                [[ "$(params.run-mac-discovery)" == "true" ]] && TAGS="${TAGS},mac-discovery"
                 echo "Managed ansible-tags: ${TAGS}"
               fi
               export ANSIBLE_COLLECTIONS_PATH="${ROOT}/.ansible-collections"
@@ -277,10 +298,11 @@ spec:
               ansible-playbook -i "localhost," -c local "$SITE" \
                 --tags "${TAGS}" \
                 -e ansible_python_interpreter=/usr/bin/python3 \
+                -e mac_discovery_output="${MAC_DISCOVERY_OUTPUT}" \
                 -e @"${VALUES_FILE}"
 
     - name: preflight-network
-      runAfter: [get-mac-addresses]
+      runAfter: [discover-node-network]
       workspaces:
         - name: shared
           workspace: shared
@@ -377,13 +399,32 @@ spec:
           - name: ztp-chart-relative-path
           - name: manifest-output-dir
         steps:
+          - name: merge-pipeline-values
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              BASE="$(cat "${ROOT}/pipeline-values.path")"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              DISC="${ROOT}/discovered-nodes.yaml"
+              SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py"
+              rm -f "${MERGED}"
+              if [ -f "$DISC" ]; then
+                apk add --no-cache python3 py3-yaml
+                python3 "$SCRIPT" "$BASE" "$DISC" "$MERGED"
+              else
+                cp "$BASE" "$MERGED"
+              fi
+              echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
+              echo "Effective values file: $MERGED"
           - name: validate-pipeline-values
             image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             script: |
               #!/bin/sh
               set -eu
               ROOT="$(workspaces.shared.path)"
-              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path")"
               EXPECT="$(params.cluster-name)"
               if ! grep -qE '^cluster:' "$VALUES_FILE"; then
                 echo "pipeline values must define top-level cluster:" >&2
@@ -396,7 +437,7 @@ spec:
                 exit 1
               fi
               if ! grep -qE '^nodes:' "$VALUES_FILE"; then
-                echo "pipeline values must define nodes: for Ansible / ClusterInstance" >&2
+                echo "effective values must define nodes: (merge MAC discovery output or use legacy static nodes in Git)" >&2
                 exit 1
               fi
           - name: helm-template-and-lint
@@ -406,7 +447,7 @@ spec:
               set -eu
               cd "$(workspaces.shared.path)/src"
               ROOT="$(workspaces.shared.path)"
-              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path")"
               OUT="$(params.manifest-output-dir)/$(params.cluster-name)"
               mkdir -p "$OUT"
               CHART="./$(params.ztp-chart-relative-path)"
@@ -609,7 +650,7 @@ spec:
                 exit 0
               fi
               ROOT="$(workspaces.shared.path)"
-              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path" 2>/dev/null || cat "${ROOT}/pipeline-values.path")"
               CLUSTER="$(params.cluster-name)"
               NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
               VAL_NAME=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  name:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
@@ -698,7 +739,7 @@ spec:
                 exit 0
               fi
               ROOT="$(workspaces.shared.path)"
-              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path" 2>/dev/null || cat "${ROOT}/pipeline-values.path")"
               CLUSTER="$(params.cluster-name)"
               CL_NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
               SEC_NS="$(params.spoke-kubeconfig-secret-namespace)"

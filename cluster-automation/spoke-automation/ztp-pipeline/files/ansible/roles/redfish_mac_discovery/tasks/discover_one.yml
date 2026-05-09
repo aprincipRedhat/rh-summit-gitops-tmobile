@@ -1,0 +1,115 @@
+---
+- name: Reset MAC accumulator for this host
+  ansible.builtin.set_fact:
+    _mac_address: ""
+
+- name: Resolve Vault secret path for host
+  ansible.builtin.set_fact:
+    _vault_secret_rel_path: >-
+      {{
+        vault.bmcCredentialsVaultPathPattern
+        | replace('%s', _hostname)
+        | replace('{hostname}', _hostname)
+      }}
+
+- name: Fetch BMC credentials from Vault KV v2
+  ansible.builtin.uri:
+    url: "{{ _vault_addr }}/v1/{{ vault.mount }}/data/{{ _vault_secret_rel_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ _vault_token }}"
+    validate_certs: false
+    return_content: true
+    status_code: [200]
+  register: _vault_bmc
+
+- name: Parse BMC username and password
+  ansible.builtin.set_fact:
+    _bmc_user: "{{ _vault_bmc.json.data.data.username | default(_vault_bmc.json.data.data.user | default('')) }}"
+    _bmc_pass: "{{ _vault_bmc.json.data.data.password | default('') }}"
+
+- name: Require BMC credentials from Vault
+  ansible.builtin.fail:
+    msg: Vault secret at {{ _vault_secret_rel_path }} must include username (or user) and password.
+  when: _bmc_user | length == 0 or _bmc_pass | length == 0
+
+- name: Derive Redfish host and path
+  ansible.builtin.set_fact:
+    _host_part: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://([^/]+).*', '\\1') }}"
+    _path_part: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://[^/]+', '') }}"
+
+- name: Build EthernetInterfaces collection URL
+  ansible.builtin.set_fact:
+    _eth_collection_url: "https://{{ _host_part }}{{ _path_part }}/EthernetInterfaces"
+
+- name: GET EthernetInterfaces collection
+  ansible.builtin.uri:
+    url: "{{ _eth_collection_url }}"
+    method: GET
+    user: "{{ _bmc_user }}"
+    password: "{{ _bmc_pass }}"
+    force_basic_auth: true
+    validate_certs: false
+    return_content: true
+    status_code: [200]
+  register: _eth_coll
+
+- name: Build absolute member URLs
+  ansible.builtin.set_fact:
+    _member_urls: >-
+      {{
+        _eth_coll.json.Members | default([])
+        | map(attribute='@odata.id')
+        | map('regex_replace', '^/', '')
+        | map('regex_replace', '^', 'https://' ~ _host_part ~ '/')
+        | list
+      }}
+
+- name: Fail when no Ethernet interfaces reported
+  ansible.builtin.fail:
+    msg: Redfish returned no EthernetInterfaces members for {{ _hostname }} ({{ _eth_collection_url }}).
+  when: _member_urls | length == 0
+
+- name: GET each EthernetInterface member
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    method: GET
+    user: "{{ _bmc_user }}"
+    password: "{{ _bmc_pass }}"
+    force_basic_auth: true
+    validate_certs: false
+    return_content: true
+    status_code: [200]
+  loop: "{{ _member_urls }}"
+  register: _iface_fetch
+
+- name: Pick first matching MAC from interfaces
+  ansible.builtin.set_fact:
+    _mac_address: "{{ item.json.PermanentMACAddress | default(item.json.MACAddress | default('')) }}"
+  loop: "{{ _iface_fetch.results }}"
+  when:
+    - (_mac_address | default('') | length) == 0
+    - (clusterDefaults.nicMapping.redfishMemberMatch | default('Embedded')) in (item.json['@odata.id'] | default(''))
+
+- name: Fail when no interface matched nicMapping
+  ansible.builtin.fail:
+    msg: >-
+      No EthernetInterface had @odata.id containing '{{ clusterDefaults.nicMapping.redfishMemberMatch | default("Embedded") }}'
+      for host {{ _hostname }}.
+  when: _mac_address is not defined or (_mac_address | length) == 0
+
+- name: Append discovered node entry
+  ansible.builtin.set_fact:
+    _discovered_nodes: "{{ _discovered_nodes + [_entry] }}"
+  vars:
+    _entry:
+      hostname: "{{ _hostname }}"
+      role: "{{ clusterDefaults.nodeRole | default('master') }}"
+      nodeNetwork:
+        interfaces:
+          - name: "{{ clusterDefaults.nicMapping.logicalName | default('eno1') }}"
+            macAddress: "{{ _mac_address }}"
+      rootDeviceHints: "{{ clusterDefaults.rootDeviceHints | default({}) }}"
+      bmcAddress: "{{ _bmc_map[_hostname] }}"
+      bmcCredentialsName:
+        name: "{{ 'bmc-' ~ cluster.name ~ '-' ~ _hostname }}"

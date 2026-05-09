@@ -1,0 +1,5 @@
+apiVersion: v2
+name: acm-hub-vault-credential-sync
+description: Hub-local ACM Policy that replicates Vault bootstrap keys into namespaces selected by labels (canonical Secret in openshift-config)
+type: application
+version: 0.1.0

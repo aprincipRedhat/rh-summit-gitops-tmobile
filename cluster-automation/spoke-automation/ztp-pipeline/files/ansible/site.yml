@@ -12,3 +12,5 @@
       tags: [dns]
     - role: ping_mesh
       tags: [ping]
+    - role: redfish_mac_discovery
+      tags: [mac-discovery, redfish, hardware]

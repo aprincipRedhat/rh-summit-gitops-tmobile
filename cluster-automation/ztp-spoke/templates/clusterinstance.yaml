@@ -13,6 +13,10 @@ spec:
   clusterName: {{ .Values.cluster.name | quote }}
   pullSecretRef:
     name: {{ .Values.pullSecretRef.name | quote }}
+  {{- range $k, $v := (.Values.clusterNetworking | default dict) }}
+  {{ $k }}:
+    {{- toYaml $v | nindent 4 }}
+  {{- end }}
   {{- with .Values.extraLabels }}
   extraLabels:
     {{- toYaml . | nindent 4 }}
@@ -25,9 +29,10 @@ spec:
   templateRefs:
     {{- toYaml .Values.templateRefs | nindent 4 }}
   {{- end }}
-  {{- if .Values.nodes }}
+  {{- $nodes := .Values.nodes | default list }}
+  {{- if and $nodes (gt (len $nodes) 0) }}
   nodes:
-    {{- toYaml .Values.nodes | nindent 4 }}
+    {{- toYaml $nodes | nindent 4 }}
   {{- end }}
   {{- if .Values.extraManifestsRefs }}
   extraManifestsRefs:

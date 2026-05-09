@@ -1,0 +1,48 @@
+# Override via hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml
+
+vaultHubCredentialSync:
+  enabled: false
+
+  # When true, the Policy exists but does not enforce (safe for staged rollout).
+  policyDisabled: true
+
+  policyNamespace: policies
+  placementName: placement-hub-local-cluster
+  policyName: policy-hub-vault-bootstrap-secret-sync
+  configurationPolicyName: hub-vault-bootstrap-credentials-sync
+  placementBindingName: binding-hub-vault-bootstrap-secret-sync
+
+  # Canonical bootstrap material read by hub templates ({{hub fromSecret ...}}).
+  sourceSecret:
+    namespace: openshift-config
+    name: vault-hub-bootstrap-credentials
+
+  # Keys copied into each selected namespace; values come only from the hub Secret above.
+  secretKeys:
+    - VAULT_ADDR
+    - VAULT_TOKEN
+    - secretId
+
+  # Must match tektonZtp.vault.secretName on this hub.
+  destinationSecretName: vault-tekton-credentials
+
+  # ServiceAccount used by Policy hub templates (deployed with acm-spoke-clusters).
+  hubTemplateServiceAccount:
+    name: policy-hub-template-lookup
+    namespace: policies
+
+  # Namespaces that should receive the Secret must match this selector (label them yourself).
+  # Do not set metadata.namespace on the Secret template when using namespaceSelector.
+  namespaceSelector:
+    matchLabels:
+      vault.hashicorp.com/receive-synced-credentials: "true"
+    include: []
+    exclude: []
+
+  # Optional placeholder Secret in openshift-config (same keys as Day 1 vault-bootstrap).
+  bootstrapSecret:
+    enabled: true
+    stringData:
+      VAULT_ADDR: "https://vault.example.com:8200"
+      VAULT_TOKEN: "REPLACE_ME"
+      secretId: "REPLACE_ME"

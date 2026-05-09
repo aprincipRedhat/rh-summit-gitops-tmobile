@@ -1,0 +1,18 @@
+{{- if and .Values.vaultHubConfiguration.enabled .Values.vaultHubConfiguration.vaultConnection.enabled }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: {{ .Values.vaultHubConfiguration.vaultConnection.name | quote }}
+  namespace: {{ .Values.vaultHubConfiguration.operatorNamespace | quote }}
+spec:
+  address: {{ .Values.vaultHubConfiguration.vaultConnection.address | quote }}
+  {{- if .Values.vaultHubConfiguration.vaultConnection.skipTLSVerify }}
+  skipTLSVerify: true
+  {{- end }}
+  {{- with .Values.vaultHubConfiguration.vaultConnection.tlsServerName }}
+  tlsServerName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.vaultHubConfiguration.vaultConnection.caCertSecretRef }}
+  caCertSecretRef: {{ . | quote }}
+  {{- end }}
+{{- end }}

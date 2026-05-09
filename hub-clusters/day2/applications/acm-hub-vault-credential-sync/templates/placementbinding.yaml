@@ -1,0 +1,15 @@
+{{- if .Values.vaultHubCredentialSync.enabled }}
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: {{ .Values.vaultHubCredentialSync.placementBindingName | quote }}
+  namespace: {{ .Values.vaultHubCredentialSync.policyNamespace | quote }}
+placementRef:
+  name: {{ .Values.vaultHubCredentialSync.placementName | quote }}
+  kind: Placement
+  apiVersion: cluster.open-cluster-management.io/v1beta1
+subjects:
+  - name: {{ .Values.vaultHubCredentialSync.policyName | quote }}
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io
+{{- end }}

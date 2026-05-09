@@ -7,7 +7,7 @@ This repo does **not** automate etcd member removal, OSD teardown, or RAID workf
 ## Phases (reference)
 
 1. Update **`99-pipeline-values/<cluster>.yaml`** for replacement hardware / BMC.
-2. Run **`get-mac-addresses`** / validation stages from the main ZTP pipeline (or manually refresh MAC data).
+2. Run **`discover-node-network`** / validation stages from the main ZTP pipeline (or manually refresh MAC data).
 3. Regenerate manifests (**`generate-cluster-files`**) and merge via Git PR.
 4. For control-plane or storage nodes: remove etcd membership / OSDs **before** deleting **`BareMetalHost`** objects — see OpenShift / ODF documentation.
 5. **`execute-destructive`**: patch **`BareMetalHost`** / **`Agent`** suppression flags per your ACM version, delete **`BareMetalHost`**, allow Assisted Installer to reprovision.

@@ -1,0 +1,29 @@
+# Override via hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → vaultHubConfiguration
+
+vaultHubConfiguration:
+  enabled: false
+
+  # Namespace where VSO runs (matches Day 1 vault-secrets-operator subscription target).
+  operatorNamespace: vault-secrets-operator
+
+  vaultConnection:
+    enabled: true
+    name: vault-connection
+    address: "https://vault.example.com:8200"
+    skipTLSVerify: false
+    # tlsServerName: ""
+    # caCertSecretRef: ""
+
+  # Baseline VaultAuth in the operator namespace — duplicate into spoke namespaces for VaultStaticSecret (ACM policy or Git).
+  vaultAuth:
+    enabled: true
+    name: vault-auth-spoke
+    vaultConnectionRef: vault-connection
+    mount: kubernetes
+    # Allow VaultStaticSecret consumers in these namespaces to reference this VaultAuth (VSO default is restrictive).
+    allowedNamespaces:
+      - "*"
+    kubernetes:
+      role: hub-ztp-vso
+      serviceAccount: vault-auth
+      tokenExpirationSeconds: 600

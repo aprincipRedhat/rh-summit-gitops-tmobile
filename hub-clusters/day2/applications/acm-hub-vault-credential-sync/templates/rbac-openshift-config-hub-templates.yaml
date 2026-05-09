@@ -1,0 +1,27 @@
+{{- if .Values.vaultHubCredentialSync.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: policy-hub-template-reads-vault-bootstrap
+  namespace: {{ .Values.vaultHubCredentialSync.sourceSecret.namespace | quote }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - {{ .Values.vaultHubCredentialSync.sourceSecret.name | quote }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: policy-hub-template-reads-vault-bootstrap
+  namespace: {{ .Values.vaultHubCredentialSync.sourceSecret.namespace | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: policy-hub-template-reads-vault-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.vaultHubCredentialSync.hubTemplateServiceAccount.name | quote }}
+    namespace: {{ .Values.vaultHubCredentialSync.hubTemplateServiceAccount.namespace | quote }}
+{{- end }}

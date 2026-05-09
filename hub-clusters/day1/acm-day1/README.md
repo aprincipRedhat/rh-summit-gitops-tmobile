@@ -8,6 +8,7 @@ Installs ACM Day 1 resources on the hub:
 - ACM operator subscription
 - `MultiClusterHub`
 - **Vault Secrets Operator** (HashiCorp certified; OLM from `certified-operators`) when **`vaultSecretsOperator.enabled`** is true
+- **`vaultBootstrap`** — optional placeholder **`Secret`** (`vault-bootstrap-credentials` by default) in the VSO namespace with **`VAULT_ADDR`**, **`VAULT_TOKEN`**, and **`secretId`** keys for Tekton / **`VaultStaticSecret`** workflows (replace **`REPLACE_ME`** before enforcing ACM replication policies)
 
 ## Inputs
 

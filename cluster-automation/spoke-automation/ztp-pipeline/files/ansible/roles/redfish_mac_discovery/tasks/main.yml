@@ -1,0 +1,48 @@
+---
+- name: Skip mac discovery when SKIP_MAC_DISCOVERY=true
+  ansible.builtin.meta: end_play
+  when: lookup('env', 'SKIP_MAC_DISCOVERY') | default('false') | lower == 'true'
+
+- name: Skip when legacy pipeline values already include MACs on nodes
+  ansible.builtin.meta: end_play
+  when:
+    - nodes is defined
+    - nodes | length > 0
+    - (nodes[0].nodeNetwork.interfaces[0].macAddress | default('')) | length > 0
+
+- name: Skip when no hostname-only inventory
+  ansible.builtin.meta: end_play
+  when: nodeHostnames is not defined or (nodeHostnames | length) == 0
+
+- name: Resolve Vault connection
+  ansible.builtin.set_fact:
+    _vault_addr: "{{ lookup('env', 'VAULT_ADDR') | default('', true) }}"
+    _vault_token: "{{ lookup('env', 'VAULT_TOKEN') | default('', true) }}"
+    _out_path: "{{ mac_discovery_output | default(lookup('env', 'MAC_DISCOVERY_OUTPUT') | default('/tmp/discovered-nodes.yaml', true)) }}"
+
+- name: Fail fast when Vault is not configured for discovery
+  ansible.builtin.fail:
+    msg: >-
+      Hostname-only inventory requires VAULT_ADDR and VAULT_TOKEN for BMC credential lookup before Redfish discovery.
+  when: _vault_addr | length == 0 or _vault_token | length == 0
+
+- name: Build BMC URL map from template
+  ansible.builtin.set_fact:
+    _bmc_map: "{{ _bmc_map | default({}) | combine({ item: (bmcAddressTemplate | replace('{hostname}', item)) }) }}"
+  loop: "{{ nodeHostnames }}"
+
+- name: Reset discovered nodes accumulator
+  ansible.builtin.set_fact:
+    _discovered_nodes: []
+
+- name: Discover MAC via Redfish for each hostname
+  ansible.builtin.include_tasks: discover_one.yml
+  loop: "{{ nodeHostnames }}"
+  loop_control:
+    loop_var: _hostname
+
+- name: Write discovered nodes fragment for Tekton merge
+  ansible.builtin.copy:
+    dest: "{{ _out_path }}"
+    mode: "0644"
+    content: "{{ {'nodes': _discovered_nodes } | to_nice_yaml }}"

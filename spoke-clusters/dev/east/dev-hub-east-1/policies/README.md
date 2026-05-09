@@ -8,7 +8,7 @@ PolicyGenerator + Kustomize source for RHACM governance policies for hub **`dev-
 
 - **`common-gitops-config-pg.yaml`** — **`ArgoCD`** resource tuning from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (disabled by default — set **`disabled: false`** to roll out).
 - **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (multiple entries + **patches**).
-- **`kustomization.yaml`** — **`generators`** only (hub **`policies`** namespace + hub-template RBAC live in **`hub-clusters/day2/applications/acm-spoke-clusters`**).
+- **`kustomization.yaml`** — **`generators`** only (hub **`policies`** namespace + hub-template RBAC live in **`hub-clusters/day2/applications/acm-spoke-clusters`**). Hub-only Vault credential replication to Tekton namespaces is **`hub-clusters/day2/applications/acm-hub-vault-credential-sync`** (**`app-acm-hub-vault-credential-sync`**) — not in this folder.
 - **`../../../../../source-crs/`** — shared PolicyGenerator inputs at repo root.
 
 ## Outputs

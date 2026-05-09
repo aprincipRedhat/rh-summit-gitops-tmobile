@@ -6,3 +6,6 @@ tektonZtp:
     timeoutSeconds: 7200
   clusterValidation:
     timeoutSeconds: 3600
+  # Optional Secret in openshift-pipelines with VAULT_ADDR and VAULT_TOKEN for Redfish MAC discovery.
+  vault:
+    secretName: ""
