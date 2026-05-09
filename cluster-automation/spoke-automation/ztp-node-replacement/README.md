@@ -1,30 +1,60 @@
 # Chart: ztp-node-replacement
 
-Optional **Tekton Pipeline** skeleton aligned with BO2299 node-replacement narrative: **diagnose** hub-side objects, then **optionally** run guarded **`oc`** steps when **`execute-destructive=true`**.
+Tekton **Pipeline** for bare-metal **node replacement**: suppress the marked node in **ClusterInstance** (Git MR), merge and wait, perform spoke teardown (with **etcd** manual gate for control-plane nodes), **Redfish MAC discovery**, final **helm template** + MR, optional **deploy watch**.
 
-This repo does **not** automate etcd member removal, OSD teardown, or RAID workflows — integrate those via your runbooks or external Tasks.
+## Prerequisites
 
-## Phases (reference)
+1. **Pipeline values** — In **`spoke-clusters/.../99-pipeline-values/<cluster>.yaml`**, set exactly **one** node with **`replacementTarget: true`** (and **`hostName`** matching the spoke **Node** name). YAML **`# comments` are not preserved** by the merge script—use this structured field.
+2. **Hub ApplicationSet drift** — Enable **`applicationSet.ignoreDifferences`** in **`hub-clusters/day2/app-of-apps/values.yaml`** during replacement so **`ClusterInstance.spec.nodes`** drift does not thrash sync (see app-of-apps README).
+3. **Secrets** — **`github-tekton-token`** (or **`tektonNodeReplacement.github`** overrides) for **`gh`**. Optional **`tektonNodeReplacement.vault.secretName`** for Ansible Redfish (same pattern as **`ztp-pipeline`**). Spoke **`kubeconfig`** Secret on the hub (**`<cluster>-admin-kubeconfig`** in **`cluster.namespace`** by default).
+4. **RBAC** — Pipeline **`ServiceAccount`** (default **`pipeline-ztp-gitops`**) needs **`oc`** delete on **Node**/**Machine**/**BareMetalHost**, ConfigMap patch in **`openshift-pipelines`** (etcd gate), and **`get`** on the kubeconfig Secret.
 
-1. Update **`99-pipeline-values/<cluster>.yaml`** for replacement hardware / BMC.
-2. Run **`discover-node-network`** / validation stages from the main ZTP pipeline (or manually refresh MAC data).
-3. Regenerate manifests (**`generate-cluster-files`**) and merge via Git PR.
-4. For control-plane or storage nodes: remove etcd membership / OSDs **before** deleting **`BareMetalHost`** objects — see OpenShift / ODF documentation.
-5. **`execute-destructive`**: patch **`BareMetalHost`** / **`Agent`** suppression flags per your ACM version, delete **`BareMetalHost`**, allow Assisted Installer to reprovision.
-6. **`unsuppress`**: restore provisioning once hardware is ready (customer automation).
+## Enable (two toggles)
 
-## Pipeline params
+| Location | Key | Purpose |
+|----------|-----|---------|
+| **`hub-clusters/day2/managed-applications/values.yaml`** | **`tektonNodeReplacement.enabled: true`** | Renders Argo **`Application`** **`app-tekton-node-replacement`**. |
+| **`hub-clusters/day2/99-environments/<hub>/values.yaml`** | **`tektonNodeReplacement.enabled: true`** | Renders the **`Pipeline`** CR from this chart. |
 
-| Param | Purpose |
-|-------|---------|
-| **`cluster-namespace`** | Namespace of **`ClusterInstance`** / **`BareMetalHost`** resources |
-| **`cluster-name`** | **`ClusterInstance`** name |
-| **`node-name`** | **`BareMetalHost`** to target |
-| **`scenario`** | Informational label (**worker** / **master** / **storage**) |
-| **`execute-destructive`** | **`false`** (default): read-only **`oc get`**. **`true`**: runs **`oc delete baremetalhost`** (dangerous). |
+Images, GitHub Secret names, Ansible ConfigMap, and timeouts align with **`tektonNodeReplacement.*`** in that hub values file (defaults in this chart’s **`values.yaml`**).
 
-## Enable chart
+## Flow
 
-Set **`tektonNodeReplacement.enabled: true`** in **`hub-clusters/day2/99-environments/.../values.yaml`** and sync this chart (no Application wrapper by default — template manually or add one alongside **`application-tekton-ztp.yaml`**).
+1. **`clone-repos`** — Resolve **`99-pipeline-values/<cluster>.yaml`** (same discovery rules as **`ztp-pipeline`**).
+2. **`merge-pipeline-values`** — **`merge_pipeline_values.py`** (base + **`discovered-nodes.yaml`** if present).
+3. **`validate-replacement-marker`** — Exactly one **`replacementTarget`**; writes **`replacement-target-host.txt`**.
+4. **`helm-render-suppress`** — **`helm template`** with **`nodeReplacement.omitMarkedNodes=true`** overlay → **`manifests.yaml`** without the marked node (suppress new BMC for that slot).
+5. **`git-mr-suppress`** / **`wait-merge-suppress`** — GitHub PR; optional skips via params.
+6. **`spoke-teardown-and-hub-cleanup`** — Spoke **`kubeconfig`**; if **control-plane**, etcd **ConfigMap** gate **`ztp-node-replacement-etcd-<cluster>`** in **`openshift-pipelines`** unless **`skip-etcd-manual-gate=true`** (danger). When **`execute-destructive=true`**: **`oc delete node`**, wait until **Machine** gone, **`oc delete baremetalhost`** on hub.
+7. **`discover-node-network`** — Ansible preflight + MAC discovery (reuse **`ztp-ansible-preflight`** ConfigMap pattern).
+8. **`merge-and-render-final`** — Re-merge with discovery; **`strip_replacement_marker.py`** clears **`replacementTarget`** from merged YAML; **`helm template`** full **`ClusterInstance`** (unsuppress provisioning).
+9. **`git-mr-final`** / **`wait-merge-final`** — Second PR with refreshed manifests.
+10. **`deploy-watch`** — Optional **`ClusterInstance`** Ready + **BMH** watch (**`skip-deploy-watch`**).
 
-Use **`pipeline-ztp-gitops`** or a dedicated SA with **`get/list/delete`** on **`BareMetalHost`** / **`ClusterInstance`** in the spoke provisioning namespace.
+## Params (high level)
+
+| Param | Notes |
+|-------|------|
+| **`skip-suppress-mr`** | Skip suppress-phase MR if suppression already applied. |
+| **`skip-wait-merge-suppress`** / **`skip-wait-merge-final`** | CI shortcuts. |
+| **`skip-etcd-manual-gate`** | Only after completing [OpenShift etcd member removal](https://docs.openshift.com/container-platform/latest/backup_and_restore/control_plane_backup_and_restore/replacing-unhealthy-etcd-member.html) for control-plane nodes. |
+| **`execute-destructive`** | **`false`** (default): no **`oc delete`**. **`true`**: delete node / BMH. |
+
+## GitOps
+
+- Chart: **`cluster-automation/spoke-automation/ztp-node-replacement/`**
+- Application: **`hub-clusters/day2/managed-applications/templates/application-tekton-node-replacement.yaml`**
+
+## Local render
+
+```bash
+helm template nr ./cluster-automation/spoke-automation/ztp-node-replacement \
+  --set tektonNodeReplacement.enabled=true \
+  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+```
+
+## Related
+
+- **`ztp-spoke`** **`nodeReplacement.omitMarkedNodes`** — [../../ztp-spoke/README.md](../../ztp-spoke/README.md)
+- Main ZTP pipeline — [../ztp-pipeline/README.md](../ztp-pipeline/README.md)
+- ApplicationSet drift — [../../../hub-clusters/day2/app-of-apps/README.md](../../../hub-clusters/day2/app-of-apps/README.md)

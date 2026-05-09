@@ -65,4 +65,4 @@ helm template tekton-ztp-pipeline ./cluster-automation/spoke-automation/ztp-pipe
 ## Related
 
 - Render chart: [../../ztp-spoke/README.md](../../ztp-spoke/README.md)
-- Node replacement skeleton: [../ztp-node-replacement/README.md](../ztp-node-replacement/README.md)
+- Node replacement pipeline (suppress MR → teardown → discovery → final MR): [../ztp-node-replacement/README.md](../ztp-node-replacement/README.md)

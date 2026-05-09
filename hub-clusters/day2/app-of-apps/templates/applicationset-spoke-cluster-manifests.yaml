@@ -33,3 +33,7 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+{{- if .Values.applicationSet.ignoreDifferences.enabled }}
+      ignoreDifferences:
+{{ toYaml .Values.applicationSet.ignoreDifferences.rules | nindent 8 }}
+{{- end }}

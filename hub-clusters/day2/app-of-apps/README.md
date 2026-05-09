@@ -9,6 +9,7 @@ Helm chart that renders:
 
 - **`repoURL`** / **`targetRevision`** — Git source for both the root Application and ApplicationSet.
 - **`clustersPath`** — Prefix for rendered spoke manifests (default `spoke-clusters/*/*/*/clusters`).
+- **`applicationSet.ignoreDifferences`** — When **`enabled: true`**, every generated spoke-cluster `Application` gets **`spec.ignoreDifferences`** from **`rules`** (default rule ignores **`ClusterInstance.spec.nodes`**). Use during node replacement so live hub drift under **`spec.nodes`** does not thrash sync; turn off after the cluster is steady or you risk hiding real drift.
 - **`rootApp.sourcePath`** — Helm chart path for child `Application` CRs.
 - **`rootApp.helmReleaseName`** / **`rootApp.helmValueFiles`** — Argo CD Helm options for that chart (default includes `values.yaml` next to **`hub-clusters/day2/managed-applications/Chart.yaml`**).
 

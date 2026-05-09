@@ -23,3 +23,7 @@ vaultHubConfiguration:
 # Hub-local ACM Policy: replicate openshift-config Vault bootstrap Secret into labeled namespaces (requires app-acm-spoke-clusters).
 vaultHubCredentialSync:
   enabled: false
+
+# Tekton node replacement pipeline Application — enable with tektonNodeReplacement in hub 99-environments.
+tektonNodeReplacement:
+  enabled: false

@@ -1,0 +1,27 @@
+{{- if .Values.tektonNodeReplacement.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-tekton-node-replacement
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: cluster-automation/spoke-automation/ztp-node-replacement
+    helm:
+      releaseName: tekton-node-replacement-pipeline
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromClusterAutomation" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+{{- end }}

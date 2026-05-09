@@ -29,6 +29,7 @@ helm template "<cluster>" ./cluster-automation/ztp-spoke -f "<effective-values>.
 | **`clusterDefaults`** | Shared **`rootDeviceHints`**, **`nicMapping`** (`logicalName`, **`redfishMemberMatch`** substring on Redfish `@odata.id`) |
 | **`bmcAddressTemplate`** | Redfish URL per host; may contain `{hostname}` |
 | **`vault`**, **`assistedDeployment.pullSecret`** | KV paths and **`vaultAuthRef`** for **`VaultStaticSecret`** |
+| **`nodeReplacement.omitMarkedNodes`** | When **`true`**, entries in **`nodes`** with **`replacementTarget: true`** are omitted from **`ClusterInstance.spec.nodes`** (node replacement suppress phase). Helm strips **`replacementTarget`** / **`replacementPhase`** from emitted YAML. |
 
 ## Example (dev hub, after merge)
 

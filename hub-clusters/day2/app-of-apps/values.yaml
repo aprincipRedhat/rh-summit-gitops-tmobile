@@ -19,3 +19,11 @@ rootApp:
 applicationSet:
   # Git directory generator: one Argo CD Application per spoke under clustersPath (see templates/applicationset-spoke-cluster-manifests.yaml).
   name: spoke-cluster-gitops-apps
+  # During node replacement, optional ignoreDifferences reduces sync churn when hub live state diverges from Git.
+  ignoreDifferences:
+    enabled: false
+    rules:
+      - group: siteconfig.open-cluster-management.io
+        kind: ClusterInstance
+        jqPathExpressions:
+          - .spec.nodes

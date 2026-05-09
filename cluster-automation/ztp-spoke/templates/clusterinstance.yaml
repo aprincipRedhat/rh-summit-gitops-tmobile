@@ -29,10 +29,24 @@ spec:
   templateRefs:
     {{- toYaml .Values.templateRefs | nindent 4 }}
   {{- end }}
-  {{- $nodes := .Values.nodes | default list }}
+  {{- $raw := .Values.nodes | default list }}
+  {{- $nodes := $raw }}
+  {{- if (.Values.nodeReplacement | default dict).omitMarkedNodes }}
+  {{- $filtered := list }}
+  {{- range $raw }}
+  {{- if not (.replacementTarget | default false) }}
+  {{- $filtered = append $filtered . }}
+  {{- end }}
+  {{- end }}
+  {{- $nodes = $filtered }}
+  {{- end }}
   {{- if and $nodes (gt (len $nodes) 0) }}
   nodes:
-    {{- toYaml $nodes | nindent 4 }}
+  {{- range $n := $nodes }}
+  {{- $clean := omit $n "replacementTarget" "replacementPhase" }}
+    -
+{{- toYaml $clean | nindent 6 }}
+  {{- end }}
   {{- end }}
   {{- if .Values.extraManifestsRefs }}
   extraManifestsRefs:

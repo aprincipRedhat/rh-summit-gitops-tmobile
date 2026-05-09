@@ -11,6 +11,8 @@ Edit **`values.yaml`** next to `Chart.yaml` (same directory — checked into Git
 
 The root Application syncs this chart with **`helm.valueFiles: [values.yaml]`** (see `rootApp.helmValueFiles` in app-of-apps).
 
+**Node replacement Application** — Set **`tektonNodeReplacement.enabled: true`** here **and** **`tektonNodeReplacement.enabled: true`** in **`hub-clusters/day2/99-environments/<hub>/values.yaml`** so **`app-tekton-node-replacement`** exists **and** the **`Pipeline`** CR renders.
+
 ## ACM policies Application
 
 **`acmPolicies.enabled`** controls rendering of **`app-acm-policies-<clusterName>`**, with `spec.source.path: spoke-clusters/<hub...>/policies` (Kustomize at that path, not this chart). Set **`acmPolicies.enabled: false`** if you manage policy Applications elsewhere.
@@ -28,7 +30,7 @@ Order of operations:
 
 ## BO2299 deck parity (slides 17–30)
 
-Implemented in-repo: **`oc-mirror`** promotes IDMS/ITMS into hub **`ztpDisconnected`** values **and** **`policies/manifests/oc-mirror-idms-itms.yaml`**; optional **Tekton Triggers** tenant listener (**`tenantMirrorTriggers.enabled`** on **`managed-applications`** **and** hub **`99-environments`**); ZTP pipeline **RUN_\*** preflight/post-deploy/**kube-burner**/manual gate; bulk **`dry-run`** + child passthrough; node replacement **skeleton** chart (**`cluster-automation/spoke-automation/ztp-node-replacement`**). **Unsuppress BMC** / full etcd–OSD automation remains operator-runbook territory outside this demo repo.
+Implemented in-repo: **`oc-mirror`** promotes IDMS/ITMS into hub **`ztpDisconnected`** values **and** **`policies/manifests/oc-mirror-idms-itms.yaml`**; optional **Tekton Triggers** tenant listener (**`tenantMirrorTriggers.enabled`** on **`managed-applications`** **and** hub **`99-environments`**); ZTP pipeline **RUN_\*** preflight/post-deploy/**kube-burner**/manual gate; bulk **`dry-run`** + child passthrough; node replacement pipeline (**`app-tekton-node-replacement`**, **`replacementTarget`** + **`applicationSet.ignoreDifferences`** during swaps — see **`ztp-node-replacement`** README). Scripted etcd removal stays operator-runbook territory.
 
 ## Index (templates)
 
@@ -42,6 +44,7 @@ Implemented in-repo: **`oc-mirror`** promotes IDMS/ITMS into hub **`ztpDisconnec
 | `application-gitops-repos-config.yaml` | `hub-clusters/day2/applications/gitops-repos-config` | `gitops-repos-config` |
 | `application-hub-platform-day2.yaml` | `hub-clusters/day2/applications/hub-platform-day2` | `hub-platform-day2` |
 | `application-tekton-ztp.yaml` | `cluster-automation/spoke-automation/ztp-pipeline` | `tekton-ztp-pipeline` |
+| `application-tekton-node-replacement.yaml` | `cluster-automation/spoke-automation/ztp-node-replacement` | `tekton-node-replacement-pipeline` |
 | `application-tekton-bulk-ztp.yaml` | `cluster-automation/spoke-automation/bulk-ztp-pipeline` | `tekton-bulk-ztp-pipeline` |
 | `application-tekton-mirror.yaml` | `cluster-automation/spoke-automation/mirror-pipeline` | `tekton-mirror-pipeline` |
 | `application-tekton-mirror-tenant-triggers.yaml` | `cluster-automation/spoke-automation/mirror-tenant-triggers` | `tekton-mirror-tenant-triggers` |

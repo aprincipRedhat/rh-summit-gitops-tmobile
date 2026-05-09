@@ -14,7 +14,12 @@ clusterNetworking: {}
 nodeHostnames: []
 
 # Full ClusterInstance node entries — set by discovery merge, or define statically (legacy) in Git.
+# Mark exactly one node undergoing replacement with replacementTarget: true (Helm strips this key from rendered YAML).
 nodes: []
+
+# Node replacement (Tekton): omitMarkedNodes removes replacementTarget nodes from ClusterInstance.spec.nodes in rendered manifests.
+nodeReplacement:
+  omitMarkedNodes: false
 
 # When vault.enabled, Helm emits VaultStaticSecret CRs (requires VaultAuth in cluster.namespace).
 vault:
