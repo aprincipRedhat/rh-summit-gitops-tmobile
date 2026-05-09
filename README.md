@@ -46,6 +46,7 @@ helm template argocd-bootstrap ./hub-clusters/day2/app-of-apps -f hub-clusters/d
 
 ## Next
 
+- [AUTOMATION.md](AUTOMATION.md) — what we’re changing vs backlog (CI, validate scripts, hub drift).
 - [hub-clusters/README.md](hub-clusters/README.md) — hub layout and install order.
 - [spoke-clusters/README.md](spoke-clusters/README.md) — locked spoke directory convention.
 - [cluster-automation/README.md](cluster-automation/README.md) — pipelines and render chart.
