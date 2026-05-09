@@ -17,4 +17,5 @@ rootApp:
     - values.yaml
 
 applicationSet:
-  name: ztp-clusters-git
+  # Git directory generator: one Argo CD Application per spoke under clustersPath (see templates/applicationset-spoke-cluster-manifests.yaml).
+  name: spoke-cluster-gitops-apps

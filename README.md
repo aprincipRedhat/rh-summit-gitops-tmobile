@@ -16,12 +16,13 @@ Install OpenShift **Pipelines** on the hub via Tekton pipeline Applications (sep
 | Path | Role |
 |------|------|
 | `hub-clusters/day1/acm-day1` | MCE, ACM operator, `MultiClusterHub`, Vault Secrets Operator (OLM; optional). |
-| `hub-clusters/day2/app-of-apps` | Root OpenShift GitOps `Application` + `ApplicationSet`. |
+| `hub-clusters/day2/app-of-apps` | Root OpenShift GitOps `Application` + `ApplicationSet` (`spoke-cluster-gitops-apps`). |
 | `hub-clusters/day2/managed-applications` | Child `Application` Helm chart (`values.yaml` selects the `99-environments/.../values.yaml` path). |
 | `hub-clusters/day2/applications/operator-installations` | OperatorPolicy chart (OpenShift GitOps, OpenShift Pipelines, etc.). |
 | `hub-clusters/day2/applications/gitops-repos-config` | `VaultStaticSecret` resources for Argo CD repository credentials (Vault). |
 | `hub-clusters/day2/applications/policy-generator-gitops-patch` | ArgoCD repo-server patch for PolicyGenerator. |
 | `hub-clusters/day2/applications/ztp-configuration` | `ztp-common` namespace on the hub. |
+| `hub-clusters/day2/applications/acm-spoke-clusters` | `policies` namespace + hub-template RBAC for operator pin ConfigMaps. |
 | `hub-clusters/day2/applications/ztp-disconnected-configuration` | Disconnected hub: `OperatorHub`, mirrored `CatalogSource`, mirror `ConfigMap` for IDMS/ITMS YAML (Assisted Installer / ZTP); hub does not apply IDMS/ITMS CRs from this chart. |
 | `hub-clusters/day2/applications/hub-platform-day2` | Optional hub proxy / trusted CA (values-driven). |
 | `hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml` | Shared values for Day 2 Helm apps on that hub. |
@@ -29,7 +30,7 @@ Install OpenShift **Pipelines** on the hub via Tekton pipeline Applications (sep
 | `cluster-automation/ztp-spoke` | Helm chart rendered by the ZTP pipeline (`ClusterInstance`, etc.). |
 | `custom-container-images/oc-mirror` | Container image build for the mirror pipeline runner. |
 | `source-crs/` | Shared PolicyGenerator source manifests referenced by every hub’s **`spoke-clusters/.../policies/`** PolicyGenerator files. |
-| `spoke-clusters/<env>/<site>/<hub>/policies` | PolicyGenerator (`common-gitops-config-pg.yaml`, `common-operatorpolicy-pg.yaml`) + static `manifests/` (RBAC, `policies` ns). |
+| `spoke-clusters/<env>/<site>/<hub>/policies` | PolicyGenerator (`common-gitops-config-pg.yaml`, `common-operatorpolicy-pg.yaml`). |
 | `spoke-clusters/<env>/<site>/<hub>/99-pipeline-values/<cluster>.yaml` | Per-spoke inputs for `helm template`. |
 | `spoke-clusters/<env>/<site>/<hub>/clusters/<cluster>/manifests.yaml` | Pipeline output; ApplicationSet watches `spoke-clusters/*/*/*/clusters/*`. |
 

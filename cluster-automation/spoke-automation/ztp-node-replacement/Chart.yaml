@@ -1,0 +1,5 @@
+apiVersion: v2
+name: ztp-node-replacement
+description: Optional Tekton Pipeline skeleton for ACM assisted bare-metal node replacement (parameterized oc wrappers)
+type: application
+version: 0.1.0

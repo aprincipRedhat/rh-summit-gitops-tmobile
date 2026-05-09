@@ -1,0 +1,5 @@
+apiVersion: v2
+name: mirror-tenant-triggers
+description: Tekton Triggers for tenant-submitted oc-mirror PipelineRuns (HTTP EventListener + TriggerTemplate)
+type: application
+version: 0.1.0

@@ -14,16 +14,16 @@ Shared PolicyGenerator manifests live once at repository root: **`source-crs/`**
 ## GitOps
 
 - **Policies** — OpenShift GitOps `Application` from **`hub-clusters/day2/managed-applications/templates/application-acm-policies.yaml`** (`app-acm-policies-<hub-cluster-name>`), with `spec.source.path` under **`spoke-clusters/<environment>/<site>/<hub-cluster-name>/policies`** (set **`hub.*`** in **`hub-clusters/day2/managed-applications/values.yaml`**).
-- **Rendered manifests** — **`ApplicationSet`** in **`hub-clusters/day2/app-of-apps`** uses **`clustersPath: spoke-clusters/*/*/*/clusters`** so each directory under **`clusters/`** becomes a sync target on the hub.
+- **Rendered manifests** — **`ApplicationSet`** **`spoke-cluster-gitops-apps`** ( **`hub-clusters/day2/app-of-apps`**) uses **`clustersPath: spoke-clusters/*/*/*/clusters`** so each directory under **`clusters/`** becomes a sync target on the hub.
 
 ## PolicyGenerator layout
 
 Under each hub’s **`policies/`** directory:
 
 - **`common-gitops-config-pg.yaml`** — example **configuration** policy: **`ArgoCD`** instance resources from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (raise limits/requests).
-- **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (same file, multiple **patches**).
+- **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (same file, multiple **patches**). Subscription channel / CSV / approved versions resolve from the hub **`ztp-common`** ConfigMap **`<cluster>-unique-config`**, populated by **`cluster-automation/ztp-spoke`** from **`99-pipeline-values`** **`operators:`** (subscription name → pins).
 
-**`policies/manifests/`** holds **static** **`resources:`** only (namespace **`policies`**, hub-template **RBAC**) — not PolicyGenerator inputs. See **`manifests/README.md`** per hub.
+Hub-only prerequisites (**`policies`** namespace, **`policy-hub-template-lookup`** RBAC for **`ztp-common`**) ship from **`hub-clusters/day2/applications/acm-spoke-clusters`** (**`app-acm-spoke-clusters`**), not from **`policies/manifests/`**.
 
 **`path`** entries use **`../../../../../source-crs/...`** (relative to **`policies/kustomization.yaml`**).
 

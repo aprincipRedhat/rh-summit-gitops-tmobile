@@ -1,13 +1,7 @@
 # Static manifests (`manifests/`)
 
-YAML listed in **`kustomization.yaml`** under **`resources:`** is applied **as-is** by Kustomize and OpenShift GitOps. It is **not** read by PolicyGenerator and is **not** a `path` in any **PolicyGenerator** `manifests` list.
+Optional directory for YAML referenced from **`kustomization.yaml`** **`resources:`** — applied **as-is** by Kustomize (not PolicyGenerator **`path`** inputs).
 
-Use **`manifests/`** for:
+The **`policies`** namespace and **`policy-hub-template-lookup`** RBAC for **`ztp-common`** ConfigMaps are deployed from **`hub-clusters/day2/applications/acm-spoke-clusters`** (**`app-acm-spoke-clusters`**) instead of here.
 
-- Foundation objects the policy stack needs on the **hub** (or sync target) before or alongside generated policies, e.g. the **`policies`** namespace, the **ServiceAccount** and **RBAC** that let **PolicyGenerator** hub templates read **ConfigMaps** in **`ztp-common`**.
-
-Use repository-root **`source-crs/`** for:
-
-- CRs that are **inputs to PolicyGenerator** only — referenced from **`../*-pg.yaml`** with optional **`patches`**.
-
-You can move a manifest into **`source-crs/`** and reference it from a generator if you want the same “base + patch per hub” pattern; keep **`manifests/`** for things you want always present without going through a **Policy** CR.
+Use **`source-crs/`** at the repo root for PolicyGenerator **`path`** bases.

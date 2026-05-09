@@ -11,4 +11,11 @@ data:
   {{ $k }}: |-
 {{ $v | toString | trim | nindent 4 }}
 {{- end }}
+{{- range $subName, $op := (.Values.operators | default dict) }}
+  operator.{{ $subName }}.upgradeApproval: {{ ($op.upgradeApproval | default "Manual") | quote }}
+  operator.{{ $subName }}.channel: {{ $op.channel | quote }}
+  operator.{{ $subName }}.startingCSV: {{ $op.startingCSV | quote }}
+  operator.{{ $subName }}.approvedVersionsYaml: |
+{{ toYaml $op.approvedCSVs | nindent 4 }}
+{{- end }}
 {{- end }}

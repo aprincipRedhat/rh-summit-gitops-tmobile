@@ -1,0 +1,8 @@
+tektonNodeReplacement:
+  enabled: false
+  pipeline:
+    name: ztp-node-replacement
+  images:
+    cli: quay.io/openshift/origin-cli:4.15
+  serviceAccount:
+    name: pipeline-ztp-gitops

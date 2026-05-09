@@ -1,0 +1,22 @@
+{{- if and .Values.tenantMirrorTriggers.enabled .Values.tektonMirror }}
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: {{ .Values.tenantMirrorTriggers.eventListener.name }}
+  namespace: openshift-pipelines
+spec:
+  serviceAccountName: {{ .Values.tenantMirrorTriggers.serviceAccount.name }}
+  triggers:
+    - name: tenant-oc-mirror
+      interceptors:
+        - ref:
+            name: cel
+          params:
+            - name: filter
+              value: >-
+                body.destRegistry != '' && body.imagesetConfigMap != ''
+      bindings:
+        - ref: mirror-tenant-binding
+      template:
+        ref: mirror-tenant-template
+{{- end }}

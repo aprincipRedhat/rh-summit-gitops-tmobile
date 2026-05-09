@@ -1,0 +1,87 @@
+{{- if .Values.tektonNodeReplacement.enabled }}
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.tektonNodeReplacement.pipeline.name }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    Skeleton workflow for node replacement: diagnose ClusterInstance/BMH, optionally execute destructive
+    steps when execute-destructive=true. Extend with customer hooks (etcd, storage OSDs) outside this repo.
+  params:
+    - name: cluster-namespace
+      type: string
+      description: Namespace hosting ClusterInstance / BareMetalHosts (same as cluster.namespace in pipeline values).
+    - name: cluster-name
+      type: string
+    - name: node-name
+      type: string
+      description: BareMetalHost.metadata.name or Node name to act on.
+    - name: scenario
+      type: string
+      default: worker
+      description: worker | master | storage — selects documented guidance only (no automatic etcd/OSD logic in-chart).
+    - name: execute-destructive
+      type: string
+      default: "false"
+      description: Must be true to run oc delete/patch paths — default read-only diagnostics.
+  tasks:
+    - name: diagnose
+      params:
+        - name: cluster-namespace
+          value: $(params.cluster-namespace)
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: node-name
+          value: $(params.node-name)
+        - name: scenario
+          value: $(params.scenario)
+      taskSpec:
+        params:
+          - name: cluster-namespace
+          - name: cluster-name
+          - name: node-name
+          - name: scenario
+        steps:
+          - name: oc-inspect
+            image: {{ .Values.tektonNodeReplacement.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              NS="$(params.cluster-namespace)"
+              CN="$(params.cluster-name)"
+              NODE="$(params.node-name)"
+              SC="$(params.scenario)"
+              echo "scenario=${SC} — follow RHACM / Assisted Installer docs for etcd membership and Ceph OSD removal before deleting masters or storage nodes."
+              oc get clusterinstance "${CN}" -n "${NS}" -o wide || true
+              oc get baremetalhost -n "${NS}" -o wide || true
+              oc get baremetalhost "${NODE}" -n "${NS}" -o yaml || echo "BareMetalHost ${NODE} not found"
+    - name: destructive-optional
+      runAfter: [diagnose]
+      params:
+        - name: cluster-namespace
+          value: $(params.cluster-namespace)
+        - name: node-name
+          value: $(params.node-name)
+        - name: execute-destructive
+          value: $(params.execute-destructive)
+      taskSpec:
+        params:
+          - name: cluster-namespace
+          - name: node-name
+          - name: execute-destructive
+        steps:
+          - name: maybe-delete-bmh
+            image: {{ .Values.tektonNodeReplacement.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [[ "$(params.execute-destructive)" != "true" ]]; then
+                echo "execute-destructive!=true — skipping oc delete (dry guidance only)"
+                exit 0
+              fi
+              NS="$(params.cluster-namespace)"
+              NODE="$(params.node-name)"
+              echo "Deleting BareMetalHost/${NODE} in ${NS} — IRREVERSIBLE without Git restore"
+              oc delete baremetalhost "${NODE}" -n "${NS}" --wait=true
+{{- end }}

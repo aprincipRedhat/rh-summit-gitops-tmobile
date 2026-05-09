@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    kube-burner.io/ztp-smoke: "true"
+spec:
+  containers:
+    - name: pause
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["sleep", "30"]
+  restartPolicy: Never

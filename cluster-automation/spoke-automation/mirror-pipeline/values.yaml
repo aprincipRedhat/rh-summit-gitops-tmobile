@@ -23,6 +23,8 @@ tektonMirror:
     gitBaseBranch: main
     githubRepoSlug: example-org/example-gitops
     hubValuesRelativePath: hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+    policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml
+    skipPolicyManifestSync: "false"
     gitUserName: oc-mirror Bot
     gitUserEmail: oc-mirror@local
   exampleConfigMap:

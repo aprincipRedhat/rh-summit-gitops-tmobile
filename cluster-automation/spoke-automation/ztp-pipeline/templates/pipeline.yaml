@@ -5,8 +5,9 @@ metadata:
   namespace: openshift-pipelines
 spec:
   description: >-
-    BO2299-style cluster build: clone-repos → Redfish/Ansible → generate-cluster-files (helm) →
-    git-commit-and-mr → wait-for-merge → deploy-cluster (watch BMH/ACI/ClusterInstance on hub).
+    BO2299-style cluster build: clone-repos → optional SDN / Ansible preflight → optional manual gate →
+    generate-cluster-files (helm) → git-commit-and-mr → wait-for-merge → deploy-cluster → optional
+    spoke validation and kube-burner.
   params:
     - name: cluster-name
       type: string
@@ -32,7 +33,52 @@ spec:
       default: "false"
     - name: ansible-tags
       type: string
-      default: dns,ping,hardware,bmc
+      default: ""
+      description: >-
+        When non-empty, passed verbatim to ansible-playbook --tags. When empty, tags are derived from
+        run-hardware-validation and run-network-connectivity-test (managed mode).
+    - name: run-sdn-prechecks
+      type: string
+      default: "false"
+      description: When true, HTTP check using sdnValidation.healthUrl in pipeline values.
+    - name: run-hardware-validation
+      type: string
+      default: "true"
+      description: When managed ansible-tags mode, include hardware/bmc/redfish Ansible tags.
+    - name: run-network-connectivity-test
+      type: string
+      default: "true"
+      description: When managed ansible-tags mode, include ping mesh tag.
+    - name: skip-manual-approval-gate
+      type: string
+      default: "true"
+      description: When false, pause until ConfigMap data.approved=true (see README).
+    - name: manual-approval-timeout-seconds
+      type: string
+      default: {{ .Values.tektonZtp.manualApproval.timeoutSeconds | default 7200 | quote }}
+    - name: run-post-deploy-validation
+      type: string
+      default: "false"
+      description: Wait for ClusterOperators and MachineConfigPools on the spoke using kubeconfig Secret.
+    - name: run-kube-burner-tests
+      type: string
+      default: "false"
+      description: Run kube-burner against the spoke after validation (requires kubeconfig).
+    - name: spoke-kubeconfig-secret-name
+      type: string
+      default: ""
+      description: Hub Secret holding kubeconfig; default <cluster-name>-admin-kubeconfig if empty.
+    - name: spoke-kubeconfig-secret-namespace
+      type: string
+      default: ""
+      description: Namespace of kubeconfig Secret on hub; defaults to cluster.namespace from pipeline values if empty.
+    - name: cluster-validation-timeout-seconds
+      type: string
+      default: {{ .Values.tektonZtp.clusterValidation.timeoutSeconds | default 3600 | quote }}
+    - name: kube-burner-config-relative-repo-path
+      type: string
+      default: cluster-automation/spoke-automation/ztp-pipeline/files/kube-burner/profile.yml
+      description: Path under git repo clone used when run-kube-burner-tests is true.
     - name: git-user-name
       type: string
       default: "ZTP OCP Pipelines"
@@ -123,8 +169,47 @@ spec:
                 echo cluster-exists=false >> "${ROOT}/fleet-context.env"
               fi
 
-    - name: get-mac-addresses
+    - name: preflight-sdn
       runAfter: [clone-repos]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: run-sdn-prechecks
+          value: $(params.run-sdn-prechecks)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: run-sdn-prechecks
+        steps:
+          - name: http-health-check
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.run-sdn-prechecks)" != "true" ]; then
+                echo "run-sdn-prechecks!=true — skipping SDN HTTP check"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              if ! grep -qE '^sdnValidation:' "$VALUES_FILE" && ! grep -qE '^[[:space:]]+sdnValidation:' "$VALUES_FILE"; then
+                echo "sdnValidation: block with healthUrl is required when run-sdn-prechecks=true" >&2
+                exit 1
+              fi
+              URL=$(awk '/sdnValidation:/{f=1} f&&/healthUrl:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
+              if [ -z "${URL:-}" ]; then
+                echo "sdnValidation.healthUrl not found in pipeline values" >&2
+                exit 1
+              fi
+              echo "SDN health GET ${URL}"
+              apk add --no-cache curl ca-certificates
+              curl -fsS --max-time 30 "$URL" >/dev/null
+              echo "SDN precheck OK"
+
+    - name: get-mac-addresses
+      runAfter: [preflight-sdn]
       workspaces:
         - name: shared
           workspace: shared
@@ -133,12 +218,18 @@ spec:
           value: $(params.skip-ansible)
         - name: ansible-tags
           value: $(params.ansible-tags)
+        - name: run-hardware-validation
+          value: $(params.run-hardware-validation)
+        - name: run-network-connectivity-test
+          value: $(params.run-network-connectivity-test)
       taskSpec:
         workspaces:
           - name: shared
         params:
           - name: skip-ansible
           - name: ansible-tags
+          - name: run-hardware-validation
+          - name: run-network-connectivity-test
         volumes:
           - name: ansible-preflight-bundle
             configMap:
@@ -159,6 +250,16 @@ spec:
               fi
               ROOT="$(workspaces.shared.path)"
               VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              TAG_OVERRIDE="$(params.ansible-tags)"
+              if [[ -n "${TAG_OVERRIDE// }" ]]; then
+                TAGS="${TAG_OVERRIDE}"
+                echo "Using explicit ansible-tags: ${TAGS}"
+              else
+                TAGS="dns"
+                [[ "$(params.run-hardware-validation)" == "true" ]] && TAGS="${TAGS},hardware,bmc,redfish"
+                [[ "$(params.run-network-connectivity-test)" == "true" ]] && TAGS="${TAGS},ping"
+                echo "Managed ansible-tags: ${TAGS}"
+              fi
               export ANSIBLE_COLLECTIONS_PATH="${ROOT}/.ansible-collections"
               RESTORE=/tmp/ansible-preflight
               rm -rf "$RESTORE"
@@ -174,12 +275,90 @@ spec:
               SITE="$RESTORE/site.yml"
               ansible-galaxy collection install -r "$REQ" -p "$ANSIBLE_COLLECTIONS_PATH"
               ansible-playbook -i "localhost," -c local "$SITE" \
-                --tags "$(params.ansible-tags)" \
+                --tags "${TAGS}" \
                 -e ansible_python_interpreter=/usr/bin/python3 \
                 -e @"${VALUES_FILE}"
 
-    - name: generate-cluster-files
+    - name: preflight-network
       runAfter: [get-mac-addresses]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: run-network-connectivity-test
+          value: $(params.run-network-connectivity-test)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: run-network-connectivity-test
+        steps:
+          - name: iso-or-extensibility-stub
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.run-network-connectivity-test)" != "true" ]; then
+                echo "run-network-connectivity-test!=true — skipping extended network preflight stub"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              MODE=$(awk '/networkValidation:/{f=1} f&&/mode:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE" || true)
+              MODE=${MODE:-ping}
+              echo "networkValidation.mode=${MODE}"
+              if [ "$MODE" = "iso" ]; then
+                echo "ISO-based node validation requires customer Redfish/ISO tooling; integrate via hooks documented in ztp-pipeline README." >&2
+                exit 1
+              fi
+              echo "Extended network stub OK (use Ansible ping_mesh for ICMP when mode!=iso)"
+
+    - name: manual-approval-gate
+      runAfter: [preflight-network]
+      params:
+        - name: skip-manual-approval-gate
+          value: $(params.skip-manual-approval-gate)
+        - name: manual-approval-timeout-seconds
+          value: $(params.manual-approval-timeout-seconds)
+        - name: cluster-name
+          value: $(params.cluster-name)
+      taskSpec:
+        params:
+          - name: skip-manual-approval-gate
+          - name: manual-approval-timeout-seconds
+          - name: cluster-name
+        steps:
+          - name: wait-for-approval-configmap
+            image: {{ .Values.tektonZtp.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [ "$(params.skip-manual-approval-gate)" = "true" ]; then
+                echo "skip-manual-approval-gate=true — no pause"
+                exit 0
+              fi
+              NS=openshift-pipelines
+              CM="ztp-manual-$(params.cluster-name)-approval"
+              echo "Creating ConfigMap ${CM} in ${NS}; approve with:"
+              echo "  oc -n ${NS} patch configmap ${CM} --type merge -p '{\"data\":{\"approved\":\"true\"}}'"
+              oc create configmap "${CM}" --from-literal=approved=false -n "${NS}" --dry-run=client -o yaml | oc apply -f -
+              END=$(( $(date +%s) + $(params.manual-approval-timeout-seconds) ))
+              while true; do
+                NOW=$(date +%s)
+                if [ "$NOW" -ge "$END" ]; then
+                  echo "Timeout waiting for manual approval of ${CM}" >&2
+                  exit 1
+                fi
+                ST=$(oc get configmap "${CM}" -n "${NS}" -o jsonpath='{.data.approved}' 2>/dev/null || echo "")
+                if [ "$ST" = "true" ]; then
+                  echo "Manual approval recorded"
+                  exit 0
+                fi
+                sleep 15
+              done
+
+    - name: generate-cluster-files
+      runAfter: [manual-approval-gate]
       workspaces:
         - name: shared
           workspace: shared
@@ -457,6 +636,11 @@ spec:
                   READY=$(oc get clusterinstance "$CLUSTER" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
                   echo "ClusterInstance Ready=${READY:-unknown}"
                   if [ "$READY" = "True" ]; then
+                    ACI=$(oc get agentclusterinstall -n "$NS" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+                    if [ -n "$ACI" ]; then
+                      COMPLETED=$(oc get agentclusterinstall "$ACI" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Completed")].status}' 2>/dev/null || true)
+                      echo "AgentClusterInstall Completed=${COMPLETED:-unknown}"
+                    fi
                     exit 0
                   fi
                 else
@@ -471,3 +655,131 @@ spec:
                 oc get baremetalhost -n "$NS" -o wide 2>/dev/null || true
                 sleep "$POLL"
               done
+
+    - name: post-deploy-validation
+      runAfter: [deploy-cluster]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: run-post-deploy-validation
+          value: $(params.run-post-deploy-validation)
+        - name: run-kube-burner-tests
+          value: $(params.run-kube-burner-tests)
+        - name: spoke-kubeconfig-secret-name
+          value: $(params.spoke-kubeconfig-secret-name)
+        - name: spoke-kubeconfig-secret-namespace
+          value: $(params.spoke-kubeconfig-secret-namespace)
+        - name: cluster-validation-timeout-seconds
+          value: $(params.cluster-validation-timeout-seconds)
+        - name: kube-burner-config-relative-repo-path
+          value: $(params.kube-burner-config-relative-repo-path)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: run-post-deploy-validation
+          - name: run-kube-burner-tests
+          - name: spoke-kubeconfig-secret-name
+          - name: spoke-kubeconfig-secret-namespace
+          - name: cluster-validation-timeout-seconds
+          - name: kube-burner-config-relative-repo-path
+        steps:
+          - name: validate-or-skip
+            image: {{ .Values.tektonZtp.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [ "$(params.run-post-deploy-validation)" != "true" ] && [ "$(params.run-kube-burner-tests)" != "true" ]; then
+                echo "Skipping post-deploy validation and kube-burner"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              CLUSTER="$(params.cluster-name)"
+              CL_NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
+              SEC_NS="$(params.spoke-kubeconfig-secret-namespace)"
+              if [ -z "${SEC_NS}" ]; then
+                SEC_NS="${CL_NS}"
+              fi
+              SEC_NAME="$(params.spoke-kubeconfig-secret-name)"
+              if [ -z "${SEC_NAME}" ]; then
+                SEC_NAME="${CLUSTER}-admin-kubeconfig"
+              fi
+              echo "Fetching kubeconfig from Secret ${SEC_NAME} namespace ${SEC_NS}"
+              if ! oc get secret "${SEC_NAME}" -n "${SEC_NS}" >/dev/null 2>&1; then
+                echo "Cannot read Secret ${SEC_NAME} in ${SEC_NS}. Grant the pipeline ServiceAccount get on this Secret (Role in that namespace)." >&2
+                exit 1
+              fi
+              oc get secret "${SEC_NAME}" -n "${SEC_NS}" -o jsonpath='{.data.kubeconfig}' | base64 -d > "${ROOT}/spoke.kubeconfig"
+              export KUBECONFIG="${ROOT}/spoke.kubeconfig"
+              if [ "$(params.run-post-deploy-validation)" = "true" ]; then
+                CO_CT=$(oc get clusteroperator --no-headers 2>/dev/null | wc -l | tr -cd '0123456789')
+                if [ "${CO_CT:-0}" -eq 0 ]; then
+                  echo "No ClusterOperators visible with this kubeconfig — wrong Secret or API not ready?" >&2
+                  exit 1
+                fi
+                echo "Waiting for ClusterOperators Available=True (timeout $(params.cluster-validation-timeout-seconds)s)"
+                END=$(( $(date +%s) + $(params.cluster-validation-timeout-seconds) ))
+                while true; do
+                  NOW=$(date +%s)
+                  if [ "$NOW" -ge "$END" ]; then
+                    echo "Timeout waiting for cluster operators" >&2
+                    oc get clusteroperators 2>/dev/null || true
+                    exit 1
+                  fi
+                  BAD=""
+                  while read -r co; do
+                    [ -z "$co" ] && continue
+                    ST=$(oc get clusteroperator "$co" -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || echo "")
+                    if [ "$ST" != "True" ]; then
+                      BAD="$co"
+                      break
+                    fi
+                  done < <(oc get clusteroperator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+                  if [ -z "${BAD}" ]; then
+                    echo "All ClusterOperators report Available=True"
+                    break
+                  fi
+                  echo "Waiting on operator ${BAD}..."
+                  sleep 20
+                done
+                echo "Waiting for MachineConfigPools Updated=True"
+                for mcp in $(oc get mcp -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+                  oc wait mcp "$mcp" --for=jsonpath='{.status.conditions[?(@.type=="Updated")].status}'=True --timeout=$(params.cluster-validation-timeout-seconds)s
+                done
+              fi
+              if [ "$(params.run-kube-burner-tests)" = "true" ]; then
+                echo "Kube-burner runs in next step; kubeconfig at ${ROOT}/spoke.kubeconfig"
+              fi
+          - name: kube-burner
+            image: {{ .Values.tektonZtp.images.kubeBurner | default "quay.io/cloud-bulldozer/kube-burner:v1.7.10" | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.run-kube-burner-tests)" != "true" ]; then
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              export KUBECONFIG="${ROOT}/spoke.kubeconfig"
+              if [ ! -f "${KUBECONFIG}" ]; then
+                echo "Missing spoke kubeconfig in workspace" >&2
+                exit 1
+              fi
+              CFG="$(params.kube-burner-config-relative-repo-path)"
+              CFG_ABS="${ROOT}/src/${CFG}"
+              CFGDIR=$(dirname "${CFG_ABS}")
+              CONFIG=$(basename "${CFG_ABS}")
+              cd "${CFGDIR}"
+              if [ ! -f "${CONFIG}" ]; then
+                echo "kube-burner config not found: ${CFG_ABS}" >&2
+                exit 1
+              fi
+              if ! command -v kube-burner >/dev/null 2>&1; then
+                echo "kube-burner not in PATH for this image" >&2
+                exit 1
+              fi
+              kube-burner init -c "${CONFIG}" --uuid "ztp-$(params.cluster-name)"

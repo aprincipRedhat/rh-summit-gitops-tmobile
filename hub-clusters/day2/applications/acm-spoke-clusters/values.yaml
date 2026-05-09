@@ -1,0 +1,3 @@
+acmSpokeClusters:
+  policiesNamespace: policies
+  ztpCommonNamespace: ztp-common

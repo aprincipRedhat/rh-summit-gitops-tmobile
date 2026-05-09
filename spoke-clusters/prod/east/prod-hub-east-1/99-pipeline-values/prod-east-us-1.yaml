@@ -2,14 +2,30 @@ ztpCommon:
   enabled: true
   namespace: ztp-common
 
+# Keys match PolicyGenerator OperatorPolicy subscription names; rendered into ztp-common ConfigMap for hub template lookups.
+operators:
+  openshift-gitops-operator:
+    channel: stable
+    startingCSV: openshift-gitops-operator.v1.15.0
+    upgradeApproval: Manual
+    approvedCSVs:
+      - openshift-gitops-operator.v1.15.0
+  kubernetes-nmstate-operator:
+    channel: stable
+    startingCSV: kubernetes-nmstate-operator.v4.17.0
+    upgradeApproval: Manual
+    approvedCSVs:
+      - kubernetes-nmstate-operator.v4.17.0
+  openshift-pipelines-operator:
+    channel: stable
+    startingCSV: openshift-pipelines-operator-rh.v1.19.0
+    upgradeApproval: Manual
+    approvedCSVs:
+      - openshift-pipelines-operator-rh.v1.19.0
+
 clusterValues:
   data:
     etcdBackupSchedule: "0 */12 * * *"
-    operatorSubscriptionChannel: stable
-    operatorStartingCSV: openshift-pipelines-operator-rh.v1.19.0
-    operatorInstallPlanApproval: Manual
-    operatorApprovedCsvs: |
-      - openshift-pipelines-operator-rh.v1.19.0
 
 cluster:
   name: prod-east-us-1

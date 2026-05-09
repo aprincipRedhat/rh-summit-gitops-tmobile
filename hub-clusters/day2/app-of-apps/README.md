@@ -3,7 +3,7 @@
 Helm chart that renders:
 
 - **Root `Application`** — renders child Application manifests from **`hub-clusters/day2/managed-applications`** as Helm (`rootApp.sourcePath`, `rootApp.helmReleaseName`, `rootApp.helmValueFiles`).
-- **`ApplicationSet`** — git directory generator over **`spoke-clusters/*/*/*/clusters/*`** (`clustersPath`), creating one OpenShift GitOps `Application` per spoke folder under `clusters/<spoke-cluster-name>/`.
+- **`ApplicationSet`** (`spoke-cluster-gitops-apps` by default) — git directory generator over **`spoke-clusters/*/*/*/clusters/*`** (`clustersPath`), creating one OpenShift GitOps `Application` per spoke folder under `clusters/<spoke-cluster-name>/`.
 
 ## Values (`values.yaml`)
 

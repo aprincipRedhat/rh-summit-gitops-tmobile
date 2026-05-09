@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: policy-hub-template-lookup
-  namespace: policies
+  namespace: {{ .Values.acmSpokeClusters.policiesNamespace | quote }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ztp-common-configmaps-reader
-  namespace: ztp-common
+  namespace: {{ .Values.acmSpokeClusters.ztpCommonNamespace | quote }}
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -18,7 +18,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: policy-hub-template-lookup-reads-ztp-common-cm
-  namespace: ztp-common
+  namespace: {{ .Values.acmSpokeClusters.ztpCommonNamespace | quote }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -26,4 +26,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: policy-hub-template-lookup
-    namespace: policies
+    namespace: {{ .Values.acmSpokeClusters.policiesNamespace | quote }}

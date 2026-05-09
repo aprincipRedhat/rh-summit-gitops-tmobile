@@ -1,0 +1,37 @@
+# Overridden by hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml (tektonBulkZtp)
+tektonBulkZtp:
+  images:
+    cli: quay.io/openshift/origin-cli:4.15
+  pipeline:
+    name: bulk-ztp-managed-clusters
+  target:
+    pipelineName: ztp-cluster-render-pr
+    pipelineNamespace: openshift-pipelines
+  bulk:
+    maxConcurrent: 3
+    excludeManagedClusters: local-cluster
+    managedClusterLabelSelector: ""
+    childServiceAccountName: pipeline-ztp-gitops
+    childWaitTimeoutSeconds: "7200"
+    dryRun: "false"
+  childDefaults:
+    gitopsRepoUrl: ""
+    gitRevision: main
+    gitBaseBranch: main
+    githubRepoSlug: ""
+    ztpChartRelativePath: cluster-automation/ztp-spoke
+    manifestOutputDir: ""
+    skipAnsible: "false"
+    ansibleTags: ""
+    runSdnPrechecks: "false"
+    runHardwareValidation: "true"
+    runNetworkConnectivityTest: "true"
+    skipManualApprovalGate: "true"
+    runPostDeployValidation: "false"
+    runKubeBurnerTests: "false"
+    gitUserName: ZTP OCP Pipelines
+    gitUserEmail: ztp-tekton@local
+    prTitlePrefix: "Add cluster"
+    prTitlePrefixModify: "Update cluster"
+    skipWaitForMerge: "false"
+    skipDeployWatch: "false"

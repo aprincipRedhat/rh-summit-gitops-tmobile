@@ -11,3 +11,7 @@ hub:
 
 acmPolicies:
   enabled: true
+
+# Tekton Triggers EventListener for tenant-driven oc-mirror (requires OpenShift Pipelines + Triggers)
+tenantMirrorTriggers:
+  enabled: false

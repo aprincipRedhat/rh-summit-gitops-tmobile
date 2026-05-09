@@ -1,0 +1,69 @@
+{{- if and .Values.tenantMirrorTriggers.enabled .Values.tektonMirror }}
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: mirror-tenant-template
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: dest_registry
+    - name: imageset_configmap_name
+    - name: skip_git_sync
+    - name: extra_flags
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: ocp-registry-mirror-tenant-
+      spec:
+        pipelineRef:
+          name: {{ .Values.tenantMirrorTriggers.pipelineRef.name }}
+        taskRunTemplate:
+          serviceAccountName: {{ .Values.tenantMirrorTriggers.mirrorPipelineSA.name }}
+        podTemplate:
+          securityContext:
+            fsGroup: 65532
+        params:
+          - name: dest-registry
+            value: $(tt.params.dest_registry)
+          - name: extra-flags
+            value: $(tt.params.extra_flags)
+          - name: skip-git-sync
+            value: $(tt.params.skip_git_sync)
+          - name: gitops-repo-url
+            value: {{ .Values.tektonMirror.gitSync.gitopsRepoUrl | quote }}
+          - name: git-revision
+            value: {{ .Values.tektonMirror.gitSync.gitRevision | quote }}
+          - name: git-base-branch
+            value: {{ .Values.tektonMirror.gitSync.gitBaseBranch | quote }}
+          - name: github-repo-slug
+            value: {{ .Values.tektonMirror.gitSync.githubRepoSlug | quote }}
+          - name: hub-values-relative-path
+            value: {{ .Values.tektonMirror.gitSync.hubValuesRelativePath | quote }}
+          - name: git-user-name
+            value: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
+          - name: git-user-email
+            value: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+          - name: pr-title
+            value: "chore(tenant): oc-mirror from EventListener"
+          - name: policy-manifest-relative-path
+            value: {{ .Values.tektonMirror.gitSync.policyManifestRelativePath | default "" | quote }}
+          - name: skip-policy-manifest-sync
+            value: {{ .Values.tektonMirror.gitSync.skipPolicyManifestSync | default "false" | quote }}
+        workspaces:
+          - name: imageset
+            configMap:
+              name: $(tt.params.imageset_configmap_name)
+          - name: registry-auth
+            secret:
+              secretName: {{ .Values.tektonMirror.rbac.secretName }}
+          - name: shared
+            volumeClaimTemplate:
+              metadata:
+                name: mirror-tenant-shared-pvc
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ .Values.tenantMirrorTriggers.workspaces.sharedStorage | quote }}
+{{- end }}

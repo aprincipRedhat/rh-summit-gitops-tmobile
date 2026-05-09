@@ -7,7 +7,12 @@ spec:
   description: >-
     List ACM ManagedClusters (oc get managedcluster), then create PipelineRuns of the ZTP OpenShift Pipelines
     pipeline in waves of max-concurrent until each wave completes (Succeeded or Failed).
+    Supports dry-run (list targets only) and passes BO2299-style RUN_* toggles to children.
   params:
+    - name: dry-run
+      type: string
+      default: {{ .Values.tektonBulkZtp.bulk.dryRun | default "false" | quote }}
+      description: When true, print ManagedClusters that would run and exit without creating PipelineRuns.
     - name: max-concurrent
       type: string
       default: {{ .Values.tektonBulkZtp.bulk.maxConcurrent | toString | quote }}
@@ -53,6 +58,24 @@ spec:
     - name: child-ansible-tags
       type: string
       default: {{ .Values.tektonBulkZtp.childDefaults.ansibleTags | quote }}
+    - name: child-run-sdn-prechecks
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.runSdnPrechecks | default "false" | quote }}
+    - name: child-run-hardware-validation
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.runHardwareValidation | default "true" | quote }}
+    - name: child-run-network-connectivity-test
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.runNetworkConnectivityTest | default "true" | quote }}
+    - name: child-skip-manual-approval-gate
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.skipManualApprovalGate | default "true" | quote }}
+    - name: child-run-post-deploy-validation
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.runPostDeployValidation | default "false" | quote }}
+    - name: child-run-kube-burner-tests
+      type: string
+      default: {{ .Values.tektonBulkZtp.childDefaults.runKubeBurnerTests | default "false" | quote }}
     - name: child-git-user-name
       type: string
       default: {{ .Values.tektonBulkZtp.childDefaults.gitUserName | quote }}
@@ -75,6 +98,7 @@ spec:
     - name: spawn-ztp-pipelineruns
       taskSpec:
         params:
+          - name: dry-run
           - name: max-concurrent
           - name: exclude-managed-clusters
           - name: managed-cluster-label-selector
@@ -90,6 +114,12 @@ spec:
           - name: child-manifest-output-dir
           - name: child-skip-ansible
           - name: child-ansible-tags
+          - name: child-run-sdn-prechecks
+          - name: child-run-hardware-validation
+          - name: child-run-network-connectivity-test
+          - name: child-skip-manual-approval-gate
+          - name: child-run-post-deploy-validation
+          - name: child-run-kube-burner-tests
           - name: child-git-user-name
           - name: child-git-user-email
           - name: child-pr-title-prefix
@@ -146,6 +176,21 @@ spec:
               echo "Clusters (${#CLUSTERS[@]}): ${CLUSTERS[*]}"
               echo "Wave size (max concurrent child PipelineRuns): ${MAX}"
 
+              if [[ "$(params.dry-run)" == "true" ]]; then
+                echo ""
+                echo "=== DRY RUN — would spawn PipelineRuns with params ==="
+                echo "run-sdn-prechecks=$(params.child-run-sdn-prechecks)"
+                echo "run-hardware-validation=$(params.child-run-hardware-validation)"
+                echo "run-network-connectivity-test=$(params.child-run-network-connectivity-test)"
+                echo "skip-manual-approval-gate=$(params.child-skip-manual-approval-gate)"
+                echo "run-post-deploy-validation=$(params.child-run-post-deploy-validation)"
+                echo "run-kube-burner-tests=$(params.child-run-kube-burner-tests)"
+                for c in "${CLUSTERS[@]}"; do
+                  echo "  cluster-name=${c}"
+                done
+                exit 0
+              fi
+
               create_child() {
                 local cluster="$1"
                 local safe="${cluster//[^a-zA-Z0-9-]/-}"
@@ -190,6 +235,18 @@ spec:
                   "      value: \"$(params.child-skip-ansible)\"" \
                   "    - name: ansible-tags" \
                   "      value: \"$(params.child-ansible-tags)\"" \
+                  "    - name: run-sdn-prechecks" \
+                  "      value: \"$(params.child-run-sdn-prechecks)\"" \
+                  "    - name: run-hardware-validation" \
+                  "      value: \"$(params.child-run-hardware-validation)\"" \
+                  "    - name: run-network-connectivity-test" \
+                  "      value: \"$(params.child-run-network-connectivity-test)\"" \
+                  "    - name: skip-manual-approval-gate" \
+                  "      value: \"$(params.child-skip-manual-approval-gate)\"" \
+                  "    - name: run-post-deploy-validation" \
+                  "      value: \"$(params.child-run-post-deploy-validation)\"" \
+                  "    - name: run-kube-burner-tests" \
+                  "      value: \"$(params.child-run-kube-burner-tests)\"" \
                   "    - name: git-user-name" \
                   "      value: \"$(params.child-git-user-name)\"" \
                   "    - name: git-user-email" \
@@ -261,6 +318,8 @@ spec:
 
               echo "All ${total} child PipelineRuns completed successfully."
       params:
+        - name: dry-run
+          value: $(params.dry-run)
         - name: max-concurrent
           value: $(params.max-concurrent)
         - name: exclude-managed-clusters
@@ -291,6 +350,18 @@ spec:
           value: $(params.child-skip-ansible)
         - name: child-ansible-tags
           value: $(params.child-ansible-tags)
+        - name: child-run-sdn-prechecks
+          value: $(params.child-run-sdn-prechecks)
+        - name: child-run-hardware-validation
+          value: $(params.child-run-hardware-validation)
+        - name: child-run-network-connectivity-test
+          value: $(params.child-run-network-connectivity-test)
+        - name: child-skip-manual-approval-gate
+          value: $(params.child-skip-manual-approval-gate)
+        - name: child-run-post-deploy-validation
+          value: $(params.child-run-post-deploy-validation)
+        - name: child-run-kube-burner-tests
+          value: $(params.child-run-kube-burner-tests)
         - name: child-git-user-name
           value: $(params.child-git-user-name)
         - name: child-git-user-email

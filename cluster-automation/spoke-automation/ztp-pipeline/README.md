@@ -1,31 +1,51 @@
 # Chart: ztp-pipeline
 
-Tekton **Pipeline** that renders **`cluster-automation/ztp-spoke`** manifests, opens a GitHub PR, optionally waits for merge, then watches provisioning on the hub.
+Tekton **Pipeline** that renders **`cluster-automation/ztp-spoke`** manifests, opens a GitHub PR, optionally waits for merge, watches provisioning on the hub, and optionally validates the spoke cluster and runs **kube-burner**.
 
 ## Flow
 
-1. **`clone-repos`** — Shallow **`git clone`** (depth from **`tektonZtp.git.cloneDepth`**, default **50** so `HEAD:<path>` checks are reliable), resolve exactly one **`**/99-pipeline-values/<cluster>.yaml`**, write **`pipeline-values.path`** and **`fleet-context.env`** (`cluster-exists` hint).
-2. **`get-mac-addresses`** — Ansible against **`localhost`** with **`-e @"${VALUES_FILE}"`** and **`--tags`**: **`dns_check`** (forward lookup **`api.<cluster>.<baseDomain>`** when **`baseDomain`** / **`base_domain`** is set), **`ping_mesh`** (ICMP to BMC hosts parsed from **`nodes[].bmcAddress`**), **`hardware_preflight`** (**`/redfish/v1/`**, Storage/Managers probes). **`ansible-galaxy collection install`** fails the step if collections cannot be installed.
-3. **`generate-cluster-files`** — Validates **`cluster.name`** matches Pipeline **`cluster-name`**, requires **`nodes:`**, runs **`helm lint`** + **`helm template`** → **`manifests.yaml`** under **`manifest-output-dir/<cluster>/`**.
-4. **`git-commit-and-mr`** — Branch/commit/push over HTTPS to **`github.com`** using **`GH_TOKEN`**, **`gh pr create`**, then resolves PR number via **`gh pr list --head`** (writes **`ztp-pr-number.txt`**).
-5. **`wait-for-merge`** — Polls **`gh pr view`** until **`MERGED`** (skip with **`skip-wait-for-merge`**).
-6. **`deploy-cluster`** — **`oc`** watch **ClusterInstance** Ready in namespace parsed from **`cluster.namespace`** in pipeline values; **`cluster-name`** param cross-checked (skip with **`skip-deploy-watch`**).
+1. **`clone-repos`** — Shallow **`git clone`**, resolve exactly one **`**/99-pipeline-values/<cluster>.yaml`**, write **`pipeline-values.path`** and **`fleet-context.env`** (`cluster-exists` hint).
+2. **`preflight-sdn`** — When **`run-sdn-prechecks=true`**, HTTP GET **`sdnValidation.healthUrl`** from pipeline values (requires **`sdnValidation:`** block).
+3. **`get-mac-addresses`** — Ansible with **`--tags`** derived from **`run-hardware-validation`** / **`run-network-connectivity-test`**, or **`ansible-tags`** override when non-empty (explicit mode).
+4. **`preflight-network`** — When **`run-network-connectivity-test=true`**, reads **`networkValidation.mode`**; **`iso`** fails fast (integrate customer ISO/Redfish tooling outside this repo).
+5. **`manual-approval-gate`** — When **`skip-manual-approval-gate=false`**, creates **`ConfigMap ztp-manual-<cluster>-approval`** in **`openshift-pipelines`** with **`data.approved=false`** until Operators patch **`approved=true`** (see RBAC on **`pipeline-ztp-gitops`**).
+6. **`generate-cluster-files`** — Validates **`cluster.name`**, **`helm lint`** + **`helm template`** → **`manifests.yaml`**.
+7. **`git-commit-and-mr`** / **`wait-for-merge`** — GitHub PR workflow ( **`GH_TOKEN`** Secret ).
+8. **`deploy-cluster`** — **`oc`** watch **ClusterInstance** Ready and logs **AgentClusterInstall** status.
+9. **`post-deploy-validation`** — When **`run-post-deploy-validation`** or **`run-kube-burner-tests`**, reads spoke **`kubeconfig`** from hub Secret (**`<cluster>-admin-kubeconfig`** by default in **`cluster.namespace`**); waits for **ClusterOperators** / **MachineConfigPools**; optional **kube-burner** **`init`** using **`files/kube-burner/profile.yml`**.
+
+## Pipeline parameters (BO2299 toggles)
+
+| Param | Default | Meaning |
+|-------|---------|---------|
+| **`run-sdn-prechecks`** | false | HTTP SDN health check |
+| **`run-hardware-validation`** | true | Ansible tags **hardware,bmc,redfish** (managed tag mode) |
+| **`run-network-connectivity-test`** | true | Ansible **ping** + network stub |
+| **`skip-manual-approval-gate`** | true | Set **false** to require ConfigMap approval |
+| **`run-post-deploy-validation`** | false | Spoke ClusterOperator / MCP checks (**kubeconfig** RBAC required) |
+| **`run-kube-burner-tests`** | false | Smoke workload (**kube-burner** image in **`tektonZtp.images.kubeBurner`**) |
 
 ## Hub values (`tektonZtp`)
 
 Set in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**:
 
-- **`git.cloneDepth`** — clone depth for Git history when detecting modify vs add paths.
-- **`images`** — `git`, `ansible`, `helm`, `alpineTools`, `cli`.
-- **`waitForMerge`** / **`deployWatch`** — polling intervals and timeouts.
-- **`github.secretName`** / **`secretKey`** — PAT for **`gh`** and git HTTPS push.
+- **`manualApproval.timeoutSeconds`** — Manual gate polling cap (surfaced as Pipeline default).
+- **`clusterValidation.timeoutSeconds`** — Post-deploy wait surfaces.
+- **`images.kubeBurner`** — Pin kube-burner image for optional benchmarks.
 
-Pipeline values for Ansible DNS checks: optional **`baseDomain`** or **`base_domain`** at top level of **`99-pipeline-values/<cluster>.yaml`**.
+### RBAC
+
+- **`Role`** **`pipeline-ztp-gitops`** includes **ConfigMap** create/patch in **`openshift-pipelines`** for manual approvals.
+- Grant **`get`** on the spoke **`kubeconfig`** **Secret** in its hub namespace (often same as **`cluster.namespace`**) for post-deploy steps.
+
+## Pipeline values (optional blocks)
+
+Documented in **`spoke-clusters/.../99-pipeline-values/README.md`**: **`sdnValidation.healthUrl`**, **`networkValidation.mode`** (**ping** vs **iso**).
 
 ## GitOps
 
 - Chart: **`cluster-automation/spoke-automation/ztp-pipeline/`**
-- Application template: [application-tekton-ztp.yaml](../../../hub-clusters/day2/managed-applications/templates/application-tekton-ztp.yaml)
+- Application: [`application-tekton-ztp.yaml`](../../../hub-clusters/day2/managed-applications/templates/application-tekton-ztp.yaml)
 
 ## Local render
 
@@ -37,4 +57,4 @@ helm template tekton-ztp-pipeline ./cluster-automation/spoke-automation/ztp-pipe
 ## Related
 
 - Render chart: [../../ztp-spoke/README.md](../../ztp-spoke/README.md)
-- Per-spoke values: `spoke-clusters/<env>/<site>/<hub>/99-pipeline-values/README.md`
+- Node replacement skeleton: [../ztp-node-replacement/README.md](../ztp-node-replacement/README.md)

@@ -8,7 +8,7 @@ PolicyGenerator + Kustomize source for RHACM governance policies for hub **`prod
 
 - **`common-gitops-config-pg.yaml`** — **`ArgoCD`** resource tuning from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (disabled by default).
 - **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (multiple entries + **patches**).
-- **`kustomization.yaml`** — **`generators`** + static **`resources`** under **`manifests/`** (see **`manifests/README.md`**).
+- **`kustomization.yaml`** — **`generators`** only (hub **`policies`** namespace + hub-template RBAC live in **`hub-clusters/day2/applications/acm-spoke-clusters`**).
 - **`../../../../../source-crs/`** — shared PolicyGenerator inputs at repo root.
 
 ## Outputs

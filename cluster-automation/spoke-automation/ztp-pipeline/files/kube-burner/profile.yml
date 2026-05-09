@@ -1,0 +1,12 @@
+# Minimal kube-burner workload for post-install smoke (replace with your benchmarks).
+global:
+  gc: true
+jobs:
+  - name: ztp-smoke-pods
+    jobType: create
+    qps: 1
+    burst: 1
+    jobIterations: 1
+    objects:
+      - objectTemplate: object-pod.yml
+        replicas: 2

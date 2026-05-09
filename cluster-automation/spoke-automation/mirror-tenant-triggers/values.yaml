@@ -1,0 +1,23 @@
+tenantMirrorTriggers:
+  enabled: false
+  eventListener:
+    name: mirror-tenant-listener
+  serviceAccount:
+    name: el-mirror-tenant
+  pipelineRef:
+    name: ocp-registry-mirror
+    namespace: openshift-pipelines
+  mirrorPipelineSA:
+    name: pipeline-oc-mirror
+  workspaces:
+    sharedStorage: 5Gi
+  defaults:
+    skipGitSync: "false"
+    extraFlags: ""
+    gitRevision: main
+    gitBaseBranch: main
+  binding:
+    allowedDestRegistryPattern: ".+"
+  route:
+    enabled: false
+    host: ""

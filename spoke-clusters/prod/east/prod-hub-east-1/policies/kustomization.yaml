@@ -4,5 +4,4 @@ generators:
   - common-gitops-config-pg.yaml
   - common-operatorpolicy-pg.yaml
 resources:
-  - manifests/policies-namespace.yaml
-  - manifests/hub-template-configmap-reader-rbac.yaml
+  - manifests/oc-mirror-idms-itms.yaml

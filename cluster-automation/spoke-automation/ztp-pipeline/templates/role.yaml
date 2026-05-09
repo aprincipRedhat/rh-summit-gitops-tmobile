@@ -12,3 +12,7 @@ rules:
     resources: ["configmaps"]
     resourceNames: [{{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}]
     verbs: ["get"]
+  # Manual approval gate creates/patches ConfigMaps named ztp-manual-<cluster>-approval in openshift-pipelines
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "patch", "update"]

@@ -2,7 +2,9 @@
 
 ## Purpose
 
-Tekton **Pipeline** that runs **`oc mirror`** using an `ImageSetConfiguration` ConfigMap and registry credentials Secret, writes manifests under **`workspace/mirror-artifacts`**, then (unless **`skip-git-sync=true`**) parses **`ImageDigestMirrorSet`** / **`ImageTagMirrorSet`** YAML, merges **`ztpDisconnected.imageDigestMirrorSets`** / **`imageTagMirrorSets`** into the hub **`99-environments`** values file you configure (**`tektonMirror.gitSync.hubValuesRelativePath`**), commits, pushes, and opens a GitHub PR. After merge, Argo reapplies **`ztp-disconnected-configuration`** so the mirror **`ConfigMap`** (Assisted Installer / disconnected ZTP) matches **`oc mirror`** output — the hub chart does not apply IDMS/ITMS cluster CRs.
+Tekton **Pipeline** that runs **`oc mirror`** using an `ImageSetConfiguration` ConfigMap and registry credentials Secret, writes manifests under **`workspace/mirror-artifacts`**, then (unless **`skip-git-sync=true`**) parses **`ImageDigestMirrorSet`** / **`ImageTagMirrorSet`** YAML, merges **`ztpDisconnected.imageDigestMirrorSets`** / **`imageTagMirrorSets`** into the hub **`99-environments`** values file you configure (**`tektonMirror.gitSync.hubValuesRelativePath`**), commits, pushes, and opens a GitHub PR. After merge, Argo reapplies **`ztp-disconnected-configuration`** so the mirror **`ConfigMap`** (Assisted Installer / disconnected ZTP) matches **`oc mirror`** output — the hub chart does not apply IDMS/ITMS cluster CRs on the hub API.
+
+When **`tektonMirror.gitSync.policyManifestRelativePath`** is set and **`skip-policy-manifest-sync`** is not **true**, the promote step also writes a multi-doc YAML bundle (same IDMS/ITMS documents found under **`mirror-artifacts`**) to **`spoke-clusters/<hub>/policies/manifests/oc-mirror-idms-itms.yaml`** so ACM Policy / GitOps can apply mirror routing on **spokes**. Keep **`ztpDisconnected`** (hub ConfigMap) and **`policies/manifests`** (spoke-bound bundle) reconciliations aligned via the **same PR**.
 
 ## Runner image
 

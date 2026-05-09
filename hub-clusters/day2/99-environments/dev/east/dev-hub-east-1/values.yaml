@@ -20,6 +20,11 @@ hubPlatform:
 ztpConfiguration:
   namespace: ztp-common
 
+# ACM spoke cluster governance prerequisites (policies namespace + hub-template SA/RBAC); chart defaults match ztp-common.
+acmSpokeClusters:
+  policiesNamespace: policies
+  ztpCommonNamespace: ztp-common
+
 ztpDisconnected:
   enabled: false
   operatorHub:
@@ -33,6 +38,12 @@ ztpDisconnected:
     enabled: false
     name: ztp-disconnected-mirror-artifacts
     namespace: openshift-config
+
+tenantMirrorTriggers:
+  enabled: false
+
+tektonNodeReplacement:
+  enabled: false
 
 gitopsReposConfig:
   enabled: false
@@ -54,6 +65,10 @@ operators:
 tektonZtp:
   git:
     cloneDepth: 50
+  manualApproval:
+    timeoutSeconds: 7200
+  clusterValidation:
+    timeoutSeconds: 3600
   serviceAccount:
     name: pipeline-ztp-gitops
   github:
@@ -73,6 +88,7 @@ tektonZtp:
     helm: docker.io/alpine/helm:3.14.4
     alpineTools: docker.io/alpine:3.19
     cli: quay.io/openshift/origin-cli:4.15
+    kubeBurner: quay.io/cloud-bulldozer/kube-burner:v1.7.10
   pipeline:
     name: ztp-cluster-render-pr
   pipelineRun:
@@ -106,6 +122,7 @@ tektonBulkZtp:
     managedClusterLabelSelector: ""
     childServiceAccountName: pipeline-ztp-gitops
     childWaitTimeoutSeconds: "7200"
+    dryRun: "false"
   childDefaults:
     gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     gitRevision: main
@@ -114,7 +131,13 @@ tektonBulkZtp:
     ztpChartRelativePath: cluster-automation/ztp-spoke
     manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
     skipAnsible: "true"
-    ansibleTags: dns,ping
+    ansibleTags: ""
+    runSdnPrechecks: "false"
+    runHardwareValidation: "true"
+    runNetworkConnectivityTest: "true"
+    skipManualApprovalGate: "true"
+    runPostDeployValidation: "false"
+    runKubeBurnerTests: "false"
     gitUserName: ZTP OCP Pipelines
     gitUserEmail: ztp-tekton@local
     prTitlePrefix: "Add cluster"
@@ -149,6 +172,8 @@ tektonMirror:
     gitBaseBranch: main
     githubRepoSlug: example-org/example-gitops
     hubValuesRelativePath: hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+    policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml
+    skipPolicyManifestSync: "false"
     gitUserName: oc-mirror Bot
     gitUserEmail: oc-mirror@local
   imagesetConfigMapKey: ImageSetConfiguration.yaml

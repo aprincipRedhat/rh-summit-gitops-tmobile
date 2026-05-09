@@ -33,6 +33,10 @@ spec:
       value: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
     - name: git-user-email
       value: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+    - name: policy-manifest-relative-path
+      value: {{ .Values.tektonMirror.gitSync.policyManifestRelativePath | default "" | quote }}
+    - name: skip-policy-manifest-sync
+      value: {{ .Values.tektonMirror.gitSync.skipPolicyManifestSync | default "false" | quote }}
   workspaces:
     - name: imageset
       configMap:

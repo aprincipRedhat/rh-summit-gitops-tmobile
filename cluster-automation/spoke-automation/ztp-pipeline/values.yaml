@@ -2,3 +2,7 @@
 tektonZtp:
   git:
     cloneDepth: 50
+  manualApproval:
+    timeoutSeconds: 7200
+  clusterValidation:
+    timeoutSeconds: 3600

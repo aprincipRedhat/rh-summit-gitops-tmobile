@@ -31,6 +31,18 @@ spec:
       value: {{ .Values.tektonZtp.pipelineRun.example.skipAnsible | quote }}
     - name: ansible-tags
       value: {{ .Values.tektonZtp.pipelineRun.example.ansibleTags | quote }}
+    - name: run-sdn-prechecks
+      value: "false"
+    - name: run-hardware-validation
+      value: "true"
+    - name: run-network-connectivity-test
+      value: "true"
+    - name: skip-manual-approval-gate
+      value: "true"
+    - name: run-post-deploy-validation
+      value: "false"
+    - name: run-kube-burner-tests
+      value: "false"
     - name: pr-title-prefix-modify
       value: {{ .Values.tektonZtp.pipelineRun.example.prTitlePrefixModify | quote }}
   workspaces:

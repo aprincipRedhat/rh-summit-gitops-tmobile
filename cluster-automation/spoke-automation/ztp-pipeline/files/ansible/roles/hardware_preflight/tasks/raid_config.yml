@@ -1,4 +1,5 @@
 ---
+# RAID / storage visibility — extend with vendor-specific assertions here when strict BIOS/RAID gates are required.
 # Lightweight inventory read — fails only when Redfish is up but inventory call errors.
 - name: Storage collection via Redfish (when nodes present)
   ansible.builtin.uri:
