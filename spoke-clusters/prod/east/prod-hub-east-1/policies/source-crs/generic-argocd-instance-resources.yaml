@@ -1,0 +1,23 @@
+# Default OpenShift GitOps ArgoCD instance — substitute ${VAR} or patch via PolicyGenerator.
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  server:
+    resources:
+      limits:
+        cpu: ${SERVER_CPU_LIMIT}
+        memory: ${SERVER_MEMORY_LIMIT}
+      requests:
+        cpu: ${SERVER_CPU_REQUEST}
+        memory: ${SERVER_MEMORY_REQUEST}
+  applicationSet:
+    resources:
+      limits:
+        cpu: ${APPLICATIONSET_CPU_LIMIT}
+        memory: ${APPLICATIONSET_MEMORY_LIMIT}
+      requests:
+        cpu: ${APPLICATIONSET_CPU_REQUEST}
+        memory: ${APPLICATIONSET_MEMORY_REQUEST}

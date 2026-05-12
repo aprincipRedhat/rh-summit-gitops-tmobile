@@ -1,0 +1,18 @@
+# Generic OperatorPolicy — reuse via PolicyGenerator patches (see common-operatorpolicy-pg.yaml).
+# metadata.namespace uses ClusterClaim "name". subscription name/channel use placeholders merged by patches.
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: OperatorPolicy
+metadata:
+  name: generic-operatorpolicy-placeholder
+  namespace: '{{ fromClusterClaim "name" }}'
+spec:
+  remediationAction: enforce
+  severity: high
+  complianceType: musthave
+  upgradeApproval: Manual
+  subscription:
+    name: placeholder
+    namespace: openshift-operators
+    channel: placeholder
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace
