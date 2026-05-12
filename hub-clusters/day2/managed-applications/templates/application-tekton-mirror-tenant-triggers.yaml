@@ -20,9 +20,11 @@ spec:
   ignoreDifferences:
     - group: triggers.tekton.dev
       kind: EventListener
-      jsonPointers:
-        - /spec/resources
-        - /spec/namespaceSelector
+      jqPathExpressions:
+        - .spec.resources
+        - .spec.namespaceSelector
+        - .spec.triggers[].bindings[].kind
+        - .spec.triggers[].interceptors[].ref.kind
   syncPolicy:
     automated:
       prune: true
