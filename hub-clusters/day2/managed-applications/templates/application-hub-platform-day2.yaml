@@ -16,12 +16,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-config
-  ignoreDifferences:
-    - group: argoproj.io
-      kind: ArgoCD
-      jsonPointers:
-        - /spec/repo
-        - /spec/kustomizeBuildOptions
   syncPolicy:
     automated:
       prune: true

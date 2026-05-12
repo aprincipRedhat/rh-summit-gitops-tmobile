@@ -1,4 +1,7 @@
 hubPlatform:
+  # ACM PolicyGenerator kustomize plugin image — sourced from the same RHACM release as the hub MCH.
+  # Update this tag when upgrading ACM.
+  policyGeneratorImage: registry.redhat.io/rhacm2/multicluster-operators-subscription-rhel9:v2.16.0
   proxy:
     enabled: false
     httpProxy: ""

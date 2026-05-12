@@ -14,11 +14,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-gitops
-  ignoreDifferences:
-    - group: argoproj.io
-      kind: ArgoCD
-      jsonPointers:
-        - /spec/rbac
   syncPolicy:
     automated:
       prune: true
