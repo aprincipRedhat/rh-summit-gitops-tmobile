@@ -5,6 +5,12 @@
   become: false
   vars:
     dns_automation_enabled: false
+  pre_tasks:
+    - name: Derive nodeHostnames from nodeGroups when set
+      ansible.builtin.include_tasks: pre_tasks_node_inventory.yml
+      when:
+        - nodeGroups is defined
+        - (nodeGroups.masters | default([]) | length > 0) or (nodeGroups.workers | default([]) | length > 0)
   roles:
     - role: hardware_preflight
       tags: [hardware, bmc]

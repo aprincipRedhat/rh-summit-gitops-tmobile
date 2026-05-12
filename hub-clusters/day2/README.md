@@ -36,6 +36,7 @@ Swap `dev-hub-east-1` / environment folders for the hub you are configuring.
 
 ## Related docs
 
+- **`app-acm-day1`** — Optional Argo-managed ACM Day1: set **`acmDay1.enabled`** in **`managed-applications/values.yaml`** (see [managed-applications/README.md](managed-applications/README.md) and [../day1/acm-day1/README.md](../day1/acm-day1/README.md)).
 - [applications/README.md](applications/README.md)
 - [app-of-apps/README.md](app-of-apps/README.md)
 - [99-environments/README.md](99-environments/README.md)

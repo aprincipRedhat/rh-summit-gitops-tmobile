@@ -1,7 +1,7 @@
 # Override via hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml
 
 vaultHubCredentialSync:
-  enabled: false
+  enabled: true
 
   # When true, the Policy exists but does not enforce (safe for staged rollout).
   policyDisabled: true

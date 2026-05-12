@@ -14,3 +14,4 @@ Hub-local RHACM **Policy** that enforces a clone of the Vault bootstrap Secret (
 
 - **`tektonZtp.vault.secretName`** should match **`vaultHubCredentialSync.destinationSecretName`**.
 - Placement selects **`local-cluster: "true"`** only.
+- For Vault Secrets Operator **AppRole** (see **`vault-hub-configuration`**), VSO expects the AppRole secret ID in a **`Secret`** data key **`id`**. If you reuse this Policy for VSO, add **`id`** to **`vaultHubCredentialSync.secretKeys`** (and **`vault-hub-bootstrap-credentials`**) with the same value as **`secretId`**, or point **`destinationSecretName`** at the name configured in **`vaultHubConfiguration.vaultAuth.appRole.secretRef`**.

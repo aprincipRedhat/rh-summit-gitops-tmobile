@@ -11,7 +11,7 @@ Optional hub-wide configuration driven by **`hub-clusters/day2/99-environments/<
 
 Create TLS secrets outside this chart (Vault, cert-manager, SealedSecrets, `oc create secret tls`, etc.) before enabling these flags.
 
-The chart always emits a small sentinel **`ConfigMap`** (`summit-hub-platform-day2-sentinel`) in **`openshift-config`** so OpenShift GitOps always has a manifest to reconcile when optional features are off.
+The chart always emits a small **`ConfigMap`** (`summit-hub-platform-day2-gitops-metadata`) in **`openshift-config`** so OpenShift GitOps always has a manifest to reconcile when optional features are off.
 
 ### GitOps note (`IngressController`)
 

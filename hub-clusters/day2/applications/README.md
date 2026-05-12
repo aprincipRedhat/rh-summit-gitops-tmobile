@@ -14,7 +14,7 @@ The **`Application` CRs** that reference these paths are rendered by **`../manag
 | `ztp-configuration/` | `ztp-common` (or configured) namespace on the hub. |
 | `ztp-disconnected-configuration/` | Disconnected hub: `OperatorHub`, mirrored `CatalogSource`, mirror `ConfigMap` with IDMS/ITMS YAML for Assisted Installer / ZTP (not IDMS/ITMS cluster CRs on the hub). |
 | `hub-platform-day2/` | Optional hub proxy, trusted CA, API / ingress certificates. |
-| `vault-hub-configuration/` | **`VaultConnection`** / **`VaultAuth`** for Vault Secrets Operator on the hub. |
+| `vault-hub-configuration/` | **`VaultConnection`**, **`VaultAuthGlobal`**, and **`VaultAuth`** for Vault Secrets Operator on the hub. |
 
 ## Related
 

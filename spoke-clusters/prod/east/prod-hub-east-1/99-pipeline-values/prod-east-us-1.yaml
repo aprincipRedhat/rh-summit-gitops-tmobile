@@ -42,8 +42,10 @@ clusterNetworking:
   machineNetwork:
     - cidr: 192.168.30.0/24
 
-nodeHostnames:
-  - master-0
+nodeGroups:
+  masters:
+    - master-0
+  workers: []
 
 clusterDefaults:
   nodeRole: master
@@ -58,7 +60,7 @@ bmcAddressTemplate: "redfish-virtualmedia://192.168.30.11/redfish/v1/Systems/1"
 vault:
   enabled: true
   mount: kv-v2
-  vaultAuthRef: vault-auth-spoke
+  vaultAuthRef: vault-secrets-operator/vault-auth
   bmcCredentialsVaultPathPattern: "vault-root/data/prod/east/prod-hub-east-1/bmc/%s"
 
 assistedDeployment:

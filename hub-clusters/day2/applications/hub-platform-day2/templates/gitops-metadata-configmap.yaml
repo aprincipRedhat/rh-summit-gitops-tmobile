@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: summit-hub-platform-day2-sentinel
+  name: summit-hub-platform-day2-gitops-metadata
   namespace: openshift-config
 data:
   chart: hub-platform-day2

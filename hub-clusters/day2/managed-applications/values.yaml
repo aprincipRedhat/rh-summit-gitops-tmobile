@@ -14,16 +14,18 @@ acmPolicies:
 
 # Tekton Triggers EventListener for tenant-driven oc-mirror (requires OpenShift Pipelines + Triggers)
 tenantMirrorTriggers:
-  enabled: false
+  enabled: true
 
-# Vault Secrets Operator connection/auth Application — enable after Day1 bootstrap Secret + Vault reachable.
+# Vault Secrets Operator connection/auth Application
 vaultHubConfiguration:
-  enabled: false
+  enabled: true
 
-# Hub-local ACM Policy: replicate openshift-config Vault bootstrap Secret into labeled namespaces (requires app-acm-spoke-clusters).
+# Hub-local ACM Policy: replicate openshift-config Vault bootstrap Secret into labeled namespaces
 vaultHubCredentialSync:
-  enabled: false
+  enabled: true
 
-# Tekton node replacement pipeline Application — enable with tektonNodeReplacement in hub 99-environments.
 tektonNodeReplacement:
-  enabled: false
+  enabled: true
+
+acmDay1:
+  enabled: true

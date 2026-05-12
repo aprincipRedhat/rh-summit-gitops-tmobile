@@ -2,8 +2,14 @@
 tektonBulkZtp:
   images:
     cli: quay.io/openshift/origin-cli:4.15
+  serviceAccount:
+    name: pipeline-bulk-ztp-gitops
   pipeline:
     name: bulk-ztp-managed-clusters
+  pipelineRun:
+    example:
+      enabled: false
+      generateName: bulk-ztp-demo-
   target:
     pipelineName: ztp-cluster-render-pr
     pipelineNamespace: openshift-pipelines
@@ -15,13 +21,13 @@ tektonBulkZtp:
     childWaitTimeoutSeconds: "7200"
     dryRun: "false"
   childDefaults:
-    gitopsRepoUrl: ""
+    gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     gitRevision: main
     gitBaseBranch: main
-    githubRepoSlug: ""
+    githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
     ztpChartRelativePath: cluster-automation/ztp-spoke
     manifestOutputDir: ""
-    skipAnsible: "false"
+    skipAnsible: "true"
     ansibleTags: ""
     runSdnPrechecks: "false"
     runHardwareValidation: "true"

@@ -12,9 +12,9 @@ spoke-clusters/prod/east/prod-hub-east-1/99-pipeline-values/<spoke-cluster-name>
 
 The ZTP Tekton pipeline searches for **`**/99-pipeline-values/<cluster-name>.yaml`** and fails if zero or multiple matches exist.
 
-## Hostname-only + MAC discovery
+## Hostname inventory
 
-Define **`nodeHostnames`**, **`clusterNetworking`**, **`clusterDefaults`**, **`bmcAddressTemplate`**, and **`vault`** paths; Tekton merges discovered **`nodes`** before **`helm template`**. See the dev hub **[README](../../../dev/east/dev-hub-east-1/99-pipeline-values/README.md)** for the full pattern.
+Use **`nodeGroups`** (**`masters`** / **`workers`**) or legacy **`nodeHostnames`**; Tekton runs **`expand_node_inventory.py`** then merges discovered **`nodes`** before **`helm template`**. See the dev hub **[README](../../../dev/east/dev-hub-east-1/99-pipeline-values/README.md)** for the full pattern.
 
 ## Example
 

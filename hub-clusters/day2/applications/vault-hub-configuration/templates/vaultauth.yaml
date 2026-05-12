@@ -1,4 +1,25 @@
 {{- if and .Values.vaultHubConfiguration.enabled .Values.vaultHubConfiguration.vaultAuth.enabled }}
+{{- if .Values.vaultHubConfiguration.vaultAuthGlobal.enabled }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: {{ .Values.vaultHubConfiguration.vaultAuth.name | quote }}
+  namespace: {{ .Values.vaultHubConfiguration.operatorNamespace | quote }}
+spec:
+  vaultAuthGlobalRef:
+    name: {{ .Values.vaultHubConfiguration.vaultAuthGlobal.name | quote }}
+    namespace: {{ .Values.vaultHubConfiguration.operatorNamespace | quote }}
+  {{- with .Values.vaultHubConfiguration.vaultAuth.allowedNamespaces }}
+  allowedNamespaces:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  method: appRole
+  {{- with .Values.vaultHubConfiguration.vaultAuth.mount }}
+  mount: {{ . | quote }}
+  {{- end }}
+  appRole:
+    secretRef: {{ .Values.vaultHubConfiguration.vaultAuth.appRole.secretRef | quote }}
+{{- else }}
 apiVersion: secrets.hashicorp.com/v1beta1
 kind: VaultAuth
 metadata:
@@ -7,7 +28,7 @@ metadata:
 spec:
   vaultConnectionRef: {{ .Values.vaultHubConfiguration.vaultAuth.vaultConnectionRef | quote }}
   method: kubernetes
-  mount: {{ .Values.vaultHubConfiguration.vaultAuth.mount | default "kubernetes" | quote }}
+  mount: {{ .Values.vaultHubConfiguration.vaultAuth.kubernetes.mount | default "kubernetes" | quote }}
   {{- with .Values.vaultHubConfiguration.vaultAuth.allowedNamespaces }}
   allowedNamespaces:
     {{- toYaml . | nindent 4 }}
@@ -20,4 +41,5 @@ spec:
     audiences:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+{{- end }}
 {{- end }}

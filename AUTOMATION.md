@@ -14,7 +14,7 @@ Personal scratchpad for what we’re actually changing in this repo versus what�
 
 **Disconnected mirror metadata on spokes.** Policy manifests like `spoke-clusters/.../policies/manifests/oc-mirror-idms-itms.yaml` pair with the disconnected hub story (`ztp-disconnected-configuration` catalog + mirror ConfigMap on the hub). Spokes carry IDMS/ITMS; the hub chart documents what stays where.
 
-**Pipeline charts.** Besides ZTP and mirror, we carry bulk-ZTP and node-replacement under `cluster-automation/spoke-automation/`. **Node replacement** uses **`replacementTarget`** on one node in **`99-pipeline-values`**, optional **`applicationSet.ignoreDifferences`** on the hub ApplicationSet during swaps, and Argo Application **`app-tekton-node-replacement`** (toggle **`tektonNodeReplacement.enabled`** in **`managed-applications/values.yaml`** and in **`99-environments`**). See **`ztp-node-replacement/README.md`**.
+**Pipeline charts.** Besides ZTP and mirror, we carry bulk-ZTP under `cluster-automation/spoke-automation/`. **Bare-metal node replacement** is folded into **`ztp-pipeline`**: after clone, **`detect-node-replacement`** chooses **`replacement-flow`**; use **`replacementTarget`** on exactly one node in **`99-pipeline-values`**, and enable **`applicationSet.ignoreDifferences`** on the hub ApplicationSet during swaps as before. The standalone **`ztp-node-replacement`** chart and **`app-tekton-node-replacement`** remain optional (**`tektonNodeReplacement.enabled`** in **`managed-applications`** and **`99-environments`**).
 
 *(Edit this section when reality diverges—e.g. drop bullets once merged, add the next initiative.)*
 

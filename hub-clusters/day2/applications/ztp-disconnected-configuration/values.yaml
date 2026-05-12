@@ -1,6 +1,6 @@
 # Override from hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → ztpDisconnected
 ztpDisconnected:
-  enabled: false
+  enabled: true
 
   # Aligns with OpenShift “Using Operator Lifecycle Manager in disconnected environments”:
   # disable default remote CatalogSources when using mirrored index images only.

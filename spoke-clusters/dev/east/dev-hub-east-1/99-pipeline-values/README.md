@@ -12,11 +12,16 @@ spoke-clusters/dev/east/dev-hub-east-1/99-pipeline-values/<spoke-cluster-name>.y
 
 The ZTP Tekton pipeline searches for **`**/99-pipeline-values/<cluster-name>.yaml`** and fails if zero or multiple matches exist.
 
-## Hostname-only + MAC discovery (recommended)
+## Hostname inventory (recommended)
 
-Define **`nodeHostnames`**, **`clusterNetworking`** (cluster / service / machine networks), **`clusterDefaults`** (**`nicMapping`**, **`rootDeviceHints`**), **`bmcAddressTemplate`**, and **`vault`** (`bmcCredentialsVaultPathPattern`, **`assistedDeployment.pullSecret.vaultPath`**). Do **not** check in static MAC addresses — Tekton Ansible merges **`nodes`** from Redfish before **`helm template`**.
+Use either:
 
-For a local preview, merge with **`discovered-nodes.example.yaml`** (see **[ztp-spoke README](../../../../cluster-automation/ztp-spoke/README.md)**).
+- **`nodeGroups`** with **`masters`** / **`workers`** (each entry is a hostname string or a dict with **`hostName`**), plus optional **`workerClusterDefaults`** for fields merged into worker nodes when expanding; or
+- Legacy **`nodeHostnames`** (flat list).
+
+Tekton runs **`expand_node_inventory.py`** on the merged pipeline values so **`nodes[]`** exists before **`helm template`**. Do **not** check in static MAC addresses — Tekton Ansible merges **`nodes`** from Redfish before **`helm template`**.
+
+For a local preview, merge with **`discovered-nodes.example.yaml`** (see **[ztp-spoke README](../../../../cluster-automation/ztp-spoke/README.md)**). If you use **`nodeGroups`** only, run **`expand_node_inventory.py`** on the merged file before **`helm template`** (the pipeline does this automatically).
 
 ## Legacy static `nodes`
 

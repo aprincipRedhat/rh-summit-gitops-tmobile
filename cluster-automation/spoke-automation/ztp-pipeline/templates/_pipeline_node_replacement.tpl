@@ -1,138 +1,10 @@
-{{- if .Values.tektonNodeReplacement.enabled }}
-apiVersion: tekton.dev/v1
-kind: Pipeline
-metadata:
-  name: {{ .Values.tektonNodeReplacement.pipeline.name }}
-  namespace: openshift-pipelines
-spec:
-  description: >-
-    Node replacement: merge pipeline values → validate replacementTarget → MR with suppressed node (omitMarkedNodes)
-    → wait merge → spoke kubeconfig (master/etcd gate) → delete node/Machine → MAC discovery → final MR → wait merge
-    → optional deploy watch. Destructive steps require execute-destructive=true.
-  params:
-    - name: cluster-name
-      type: string
-    - name: gitops-repo-url
-      type: string
-    - name: git-revision
-      type: string
-      default: main
-    - name: git-base-branch
-      type: string
-      default: main
-    - name: github-repo-slug
-      type: string
-    - name: ztp-chart-relative-path
-      type: string
-      default: cluster-automation/ztp-spoke
-    - name: manifest-output-dir
-      type: string
-      description: e.g. spoke-clusters/dev/east/dev-hub-east-1/clusters
-    - name: skip-suppress-mr
-      type: string
-      default: "false"
-      description: Skip suppress-phase MR (use only if ClusterInstance already reflects suppression).
-    - name: skip-wait-merge-suppress
-      type: string
-      default: "false"
-    - name: skip-etcd-manual-gate
-      type: string
-      default: "false"
-      description: If master and true, do not pause for etcd ConfigMap (danger — complete etcd removal first).
-    - name: execute-destructive
-      type: string
-      default: "false"
-    - name: skip-mac-discovery
-      type: string
-      default: "false"
-    - name: skip-ansible
-      type: string
-      default: "false"
-    - name: ansible-tags
-      type: string
-      default: ""
-    - name: spoke-kubeconfig-secret-name
-      type: string
-      default: ""
-    - name: spoke-kubeconfig-secret-namespace
-      type: string
-      default: ""
-    - name: skip-wait-merge-final
-      type: string
-      default: "false"
-    - name: skip-deploy-watch
-      type: string
-      default: "false"
-    - name: git-user-name
-      type: string
-      default: "ZTP Node Replacement"
-    - name: git-user-email
-      type: string
-      default: "ztp-node-replacement@local"
-    - name: pr-title-suppress
-      type: string
-      default: "chore(node-replacement): suppress ClusterInstance node for BMC"
-    - name: pr-title-final
-      type: string
-      default: "feat(node-replacement): replace bare-metal node"
-  workspaces:
-    - name: shared
-      description: PVC with cloned repo, merged values, rendered manifests
-  tasks:
-    - name: clone-repos
-      workspaces:
-        - name: shared
-          workspace: shared
-      params:
-        - name: gitops-repo-url
-          value: $(params.gitops-repo-url)
-        - name: git-revision
-          value: $(params.git-revision)
-        - name: cluster-name
-          value: $(params.cluster-name)
-        - name: manifest-output-dir
-          value: $(params.manifest-output-dir)
-      taskSpec:
-        workspaces:
-          - name: shared
-        params:
-          - name: gitops-repo-url
-          - name: git-revision
-          - name: cluster-name
-          - name: manifest-output-dir
-        steps:
-          - name: clone-and-resolve-values
-            image: {{ .Values.tektonNodeReplacement.images.git | quote }}
-            script: |
-              #!/bin/sh
-              set -eu
-              ROOT="$(workspaces.shared.path)"
-              cd "$ROOT"
-              rm -rf src
-              git clone --depth {{ .Values.tektonNodeReplacement.git.cloneDepth | default 50 }} --branch "$(params.git-revision)" "$(params.gitops-repo-url)" src
-              cd src
-              CLUSTER="$(params.cluster-name)"
-              TMP=/tmp/pv-matches.$$
-              trap 'rm -f "$TMP"' EXIT INT HUP
-              find . -path './.git' -prune -o -type f -path "*/99-pipeline-values/${CLUSTER}.yaml" -print \
-                | sort > "$TMP"
-              count=$(wc -l < "$TMP" | tr -cd '0123456789')
-              if [ "$count" -eq 0 ]; then
-                echo "No pipeline values file for cluster ${CLUSTER}" >&2
-                exit 1
-              fi
-              if [ "$count" -gt 1 ]; then
-                echo "Multiple pipeline values files for ${CLUSTER}:" >&2
-                cat "$TMP" >&2
-                exit 1
-              fi
-              REL=$(head -n 1 "$TMP")
-              ABS="$(pwd)/${REL#./}"
-              echo "$ABS" > "${ROOT}/pipeline-values.path"
-              echo "Resolved pipeline values: $ABS"
-
-    - name: merge-pipeline-values
-      runAfter: [clone-repos]
+{{- define "ztp.nodeReplacementTasks" }}
+    - name: replacement-merge-pipeline-values
+      runAfter: [detect-node-replacement]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -141,7 +13,7 @@ spec:
           - name: shared
         steps:
           - name: merge
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -157,11 +29,16 @@ spec:
               else
                 cp "$BASE" "$MERGED"
               fi
+              apk add --no-cache python3 py3-yaml
+              python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/expand_node_inventory.py" "$MERGED"
               echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
-              echo "Merged values: $MERGED"
 
-    - name: validate-replacement-marker
-      runAfter: [merge-pipeline-values]
+    - name: replacement-validate-marker
+      runAfter: [replacement-merge-pipeline-values]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -170,7 +47,7 @@ spec:
           - name: shared
         steps:
           - name: validate
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -180,10 +57,13 @@ spec:
               SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/validate_replacement_marker.py"
               HOST=$(python3 "$SCRIPT" "$MERGED")
               printf '%s' "$HOST" > "${ROOT}/replacement-target-host.txt"
-              echo "replacementTarget hostName=${HOST}"
 
-    - name: helm-render-suppress
-      runAfter: [validate-replacement-marker]
+    - name: replacement-helm-suppress
+      runAfter: [replacement-validate-marker]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -195,7 +75,7 @@ spec:
         - name: manifest-output-dir
           value: $(params.manifest-output-dir)
         - name: skip-suppress-mr
-          value: $(params.skip-suppress-mr)
+          value: $(params.skip-replacement-suppress-mr)
       taskSpec:
         workspaces:
           - name: shared
@@ -206,14 +86,11 @@ spec:
           - name: skip-suppress-mr
         steps:
           - name: helm-suppress
-            image: {{ .Values.tektonNodeReplacement.images.helm | quote }}
+            image: {{ .Values.tektonZtp.images.helm | quote }}
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.skip-suppress-mr)" = "true" ]; then
-                echo "skip-suppress-mr=true — not rendering suppress manifests"
-                exit 0
-              fi
+              if [ "$(params.skip-suppress-mr)" = "true" ]; then exit 0; fi
               ROOT="$(workspaces.shared.path)"
               cd "${ROOT}/src"
               VALUES="$(cat "${ROOT}/merged-pipeline-values.path")"
@@ -224,10 +101,13 @@ spec:
               helm lint "$CHART" -f "$VALUES" -f "${ROOT}/suppress-overlay.yaml"
               helm template "$(params.cluster-name)" "$CHART" -f "$VALUES" -f "${ROOT}/suppress-overlay.yaml" \
                 > "${OUT}/manifests.yaml"
-              echo "Rendered suppress manifests to ${OUT}/manifests.yaml"
 
-    - name: git-mr-suppress
-      runAfter: [helm-render-suppress]
+    - name: replacement-git-mr-suppress
+      runAfter: [replacement-helm-suppress]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -246,10 +126,8 @@ spec:
           value: $(params.git-user-name)
         - name: git-user-email
           value: $(params.git-user-email)
-        - name: pr-title-suppress
-          value: $(params.pr-title-suppress)
         - name: skip-suppress-mr
-          value: $(params.skip-suppress-mr)
+          value: $(params.skip-replacement-suppress-mr)
       taskSpec:
         workspaces:
           - name: shared
@@ -261,62 +139,46 @@ spec:
           - name: github-repo-slug
           - name: git-user-name
           - name: git-user-email
-          - name: pr-title-suppress
           - name: skip-suppress-mr
         steps:
           - name: push-suppress-pr
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonNodeReplacement.github.secretName }}
-                    key: {{ .Values.tektonNodeReplacement.github.secretKey }}
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.skip-suppress-mr)" = "true" ]; then
-                echo "skip-suppress-mr=true — no suppress PR"
-                : > "$(workspaces.shared.path)/ztp-pr-number-suppress.txt"
-                exit 0
-              fi
+              if [ "$(params.skip-suppress-mr)" = "true" ]; then : > "$(workspaces.shared.path)/ztp-pr-number-suppress.txt"; exit 0; fi
               apk add --no-cache git github-cli bash
               ROOT="$(workspaces.shared.path)"
               cd "${ROOT}/src"
               git config user.name "$(params.git-user-name)"
               git config user.email "$(params.git-user-email)"
-              BRANCH="node-replacement-suppress-$(params.cluster-name)-$(date +%s)"
+              BRANCH="ztp-nr-suppress-$(params.cluster-name)-$(date +%s)"
               git checkout -b "$BRANCH"
               git add "$(params.manifest-output-dir)/$(params.cluster-name)"
-              git commit -m "chore(node-replacement): suppress ClusterInstance node (omitMarkedNodes)" || { git status; exit 1; }
+              git commit -m "chore(ztp): suppress ClusterInstance node (omitMarkedNodes)" || { git status; exit 1; }
               REMOTE="$(params.gitops-repo-url)"
-              case "$REMOTE" in
-                https://github.com/*)
-                  OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
-                  git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
-                  ;;
-                *)
-                  echo "Expected https://github.com/... clone URL" >&2
-                  exit 1
-                  ;;
-              esac
+              OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
+              git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
               git push -u origin "$BRANCH"
               export GH_TOKEN
-              gh pr create \
-                --repo "$(params.github-repo-slug)" \
-                --base "$(params.git-base-branch)" \
-                --head "$BRANCH" \
-                --title "$(params.pr-title-suppress) $(params.cluster-name)" \
-                --body "Node replacement: suppress replacementTarget node in ClusterInstance (GitOps). Merge before spoke deletes." 2>&1
+              gh pr create --repo "$(params.github-repo-slug)" --base "$(params.git-base-branch)" --head "$BRANCH" \
+                --title "$(params.pr-title-replacement-suppress) $(params.cluster-name)" \
+                --body "ZTP node replacement: suppress BMC slot before etcd/node teardown."
               PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
-              if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
-                echo "$PR_NUM" > "${ROOT}/ztp-pr-number-suppress.txt"
-              else
-                : > "${ROOT}/ztp-pr-number-suppress.txt"
-              fi
+              echo "${PR_NUM:-}" > "${ROOT}/ztp-pr-number-suppress.txt"
 
-    - name: wait-merge-suppress
-      runAfter: [git-mr-suppress]
+    - name: replacement-wait-merge-suppress
+      runAfter: [replacement-git-mr-suppress]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -324,9 +186,9 @@ spec:
         - name: github-repo-slug
           value: $(params.github-repo-slug)
         - name: skip-wait-merge-suppress
-          value: $(params.skip-wait-merge-suppress)
+          value: $(params.skip-replacement-wait-merge-suppress)
         - name: skip-suppress-mr
-          value: $(params.skip-suppress-mr)
+          value: $(params.skip-replacement-suppress-mr)
       taskSpec:
         workspaces:
           - name: shared
@@ -336,45 +198,39 @@ spec:
           - name: skip-suppress-mr
         steps:
           - name: poll
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonNodeReplacement.github.secretName }}
-                    key: {{ .Values.tektonNodeReplacement.github.secretKey }}
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.skip-suppress-mr)" = "true" ] || [ "$(params.skip-wait-merge-suppress)" = "true" ]; then
-                echo "Skipping wait on suppress PR"
-                exit 0
-              fi
+              if [ "$(params.skip-suppress-mr)" = "true" ] || [ "$(params.skip-wait-merge-suppress)" = "true" ]; then exit 0; fi
               apk add --no-cache github-cli bash
               ROOT="$(workspaces.shared.path)"
               export GH_TOKEN
-              POLL={{ .Values.tektonNodeReplacement.waitForMerge.pollIntervalSeconds | default 30 }}
-              MAX_ITER=$(( {{ .Values.tektonNodeReplacement.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
+              POLL={{ .Values.tektonZtp.waitForMerge.pollIntervalSeconds | default 30 }}
+              MAX_ITER=$(( {{ .Values.tektonZtp.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
               PR_NUM=$(cat "${ROOT}/ztp-pr-number-suppress.txt" 2>/dev/null || echo "")
               i=0
               while [ "$i" -lt "$MAX_ITER" ]; do
-                if [ -n "$PR_NUM" ]; then
-                  STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
-                else
-                  echo "No suppress PR number — exiting wait" >&2
-                  exit 1
-                fi
-                echo "Suppress PR state=${STATE}"
-                if [ "$STATE" = "MERGED" ]; then exit 0; fi
-                if [ "$STATE" = "CLOSED" ]; then echo "PR closed" >&2; exit 1; fi
+                STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
+                [ "$STATE" = "MERGED" ] && exit 0
+                [ "$STATE" = "CLOSED" ] && exit 1
                 i=$((i + 1))
                 sleep "$POLL"
               done
-              echo "Timeout waiting for suppress PR merge" >&2
               exit 1
 
-    - name: spoke-teardown-and-hub-cleanup
-      runAfter: [wait-merge-suppress]
+    - name: replacement-teardown
+      runAfter: [replacement-wait-merge-suppress]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -382,9 +238,9 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: execute-destructive
-          value: $(params.execute-destructive)
+          value: $(params.replacement-execute-destructive)
         - name: skip-etcd-manual-gate
-          value: $(params.skip-etcd-manual-gate)
+          value: $(params.replacement-skip-etcd-manual-gate)
         - name: spoke-kubeconfig-secret-name
           value: $(params.spoke-kubeconfig-secret-name)
         - name: spoke-kubeconfig-secret-namespace
@@ -399,8 +255,8 @@ spec:
           - name: spoke-kubeconfig-secret-name
           - name: spoke-kubeconfig-secret-namespace
         steps:
-          - name: spoke-delete-node-and-machine
-            image: {{ .Values.tektonNodeReplacement.images.cli | quote }}
+          - name: etcd-then-node-conditional
+            image: {{ .Values.tektonZtp.images.cli | quote }}
             script: |
               #!/bin/bash
               set -euo pipefail
@@ -410,56 +266,53 @@ spec:
               NODE=$(cat "${ROOT}/replacement-target-host.txt")
               CL_NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES")
               SEC_NS="$(params.spoke-kubeconfig-secret-namespace)"
-              if [ -z "${SEC_NS}" ]; then SEC_NS="${CL_NS}"; fi
+              [ -z "${SEC_NS}" ] && SEC_NS="${CL_NS}"
               SEC_NAME="$(params.spoke-kubeconfig-secret-name)"
-              if [ -z "${SEC_NAME}" ]; then SEC_NAME="${CLUSTER}-admin-kubeconfig"; fi
+              [ -z "${SEC_NAME}" ] && SEC_NAME="${CLUSTER}-admin-kubeconfig"
               oc get secret "${SEC_NAME}" -n "${SEC_NS}" -o jsonpath='{.data.kubeconfig}' | base64 -d > "${ROOT}/spoke.kubeconfig"
               export KUBECONFIG="${ROOT}/spoke.kubeconfig"
-              echo "Using kubeconfig Secret ${SEC_NAME}/${SEC_NS}"
-              # Master / control-plane detection
               CP=$(oc get node "${NODE}" -o jsonpath='{.metadata.labels.node-role\.kubernetes\.io/control-plane}' 2>/dev/null || true)
               MAST=$(oc get node "${NODE}" -o jsonpath='{.metadata.labels.node-role\.kubernetes\.io/master}' 2>/dev/null || true)
               if [ "${CP}" = "true" ] || [ "${MAST}" = "true" ]; then
-                echo "Node ${NODE} is control-plane — etcd member removal required before delete."
                 if [ "$(params.skip-etcd-manual-gate)" != "true" ]; then
                   CM="ztp-node-replacement-etcd-${CLUSTER}"
                   NS=openshift-pipelines
-                  echo "Pause until etcd procedure complete + patch: oc -n ${NS} patch cm ${CM} --type merge -p '{\"data\":{\"approved\":\"true\"}}'"
                   oc create configmap "${CM}" --from-literal=approved=false -n "${NS}" --dry-run=client -o yaml | oc apply -f -
-                  END=$(( $(date +%s) + {{ .Values.tektonNodeReplacement.etcdManualGate.timeoutSeconds | default 7200 }} ))
+                  END=$(( $(date +%s) + {{ .Values.tektonZtp.nodeReplacement.etcdManualGate.timeoutSeconds | default 7200 }} ))
                   while true; do
-                    NOW=$(date +%s)
-                    if [ "$NOW" -ge "$END" ]; then echo "etcd gate timeout" >&2; exit 1; fi
+                    [ "$(date +%s)" -ge "$END" ] && { echo etcd gate timeout >&2; exit 1; }
                     ST=$(oc get configmap "${CM}" -n "${NS}" -o jsonpath='{.data.approved}' 2>/dev/null || echo "")
-                    if [ "$ST" = "true" ]; then echo "etcd gate cleared"; break; fi
+                    [ "$ST" = "true" ] && break
                     sleep 15
                   done
-                else
-                  echo "skip-etcd-manual-gate=true — proceeding without etcd pause (ensure etcd already handled)."
                 fi
               fi
               if [ "$(params.execute-destructive)" != "true" ]; then
-                echo "execute-destructive!=true — skipping oc delete node / Machine / BMH"
+                echo "replacement-execute-destructive!=true — skipping deletes"
                 exit 0
               fi
-              echo "Deleting node ${NODE} on spoke"
+              unset KUBECONFIG
+              PROV=$(oc get baremetalhost "${NODE}" -n "${CL_NS}" -o jsonpath='{.status.provisioning.state}' 2>/dev/null || echo "")
+              echo "BMH ${NODE} provisioning.state=${PROV}"
+              if echo "$PROV" | grep -qi deprovision; then
+                echo "BMH already deprovisioning — skipping oc delete node"
+                exit 0
+              fi
+              export KUBECONFIG="${ROOT}/spoke.kubeconfig"
               oc delete node "${NODE}" --wait=true
-              echo "Waiting for Machine object removal (openshift-machine-api)"
               for _ in $(seq 1 120); do
-                if ! oc get machines.machine.openshift.io -n openshift-machine-api -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' 2>/dev/null | grep -qx "${NODE}"; then
-                  echo "No Machine referencing node ${NODE}"
-                  break
-                fi
-                echo "Still waiting for Machine for node ${NODE}..."
+                if ! oc get machines.machine.openshift.io -n openshift-machine-api -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' 2>/dev/null | grep -qx "${NODE}"; then break; fi
                 sleep 10
               done
-              export KUBECONFIG=""
-              HUB_NS="${CL_NS}"
-              echo "Deleting BareMetalHost/${NODE} on hub in ${HUB_NS} if present"
-              oc delete baremetalhost "${NODE}" -n "${HUB_NS}" --wait=true 2>/dev/null || echo "BMH delete skipped or not found"
+              unset KUBECONFIG
+              oc delete baremetalhost "${NODE}" -n "${CL_NS}" --wait=true 2>/dev/null || true
 
-    - name: discover-node-network
-      runAfter: [spoke-teardown-and-hub-cleanup]
+    - name: replacement-discover-node-network
+      runAfter: [replacement-teardown]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -468,26 +321,23 @@ spec:
           value: $(params.skip-ansible)
         - name: ansible-tags
           value: $(params.ansible-tags)
-        - name: skip-mac-discovery
-          value: $(params.skip-mac-discovery)
       taskSpec:
         workspaces:
           - name: shared
         params:
           - name: skip-ansible
           - name: ansible-tags
-          - name: skip-mac-discovery
         volumes:
           - name: ansible-preflight-bundle
             configMap:
-              name: {{ .Values.tektonNodeReplacement.ansible.preflightConfigMapName | quote }}
+              name: {{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}
         steps:
           - name: ansible-mac
-            image: {{ .Values.tektonNodeReplacement.images.ansible | quote }}
-{{- if ((.Values.tektonNodeReplacement.vault | default dict).secretName | default "") }}
+            image: {{ .Values.tektonZtp.images.ansible | quote }}
+{{- if ((.Values.tektonZtp.vault | default dict).secretName | default "") }}
             envFrom:
               - secretRef:
-                  name: {{ .Values.tektonNodeReplacement.vault.secretName | quote }}
+                  name: {{ .Values.tektonZtp.vault.secretName | quote }}
 {{- end }}
             volumeMounts:
               - name: ansible-preflight-bundle
@@ -496,29 +346,17 @@ spec:
             script: |
               #!/bin/bash
               set -euo pipefail
-              if [[ "$(params.skip-ansible)" == "true" ]]; then
-                echo "skip-ansible=true — skipping discovery"
-                exit 0
-              fi
+              if [[ "$(params.skip-ansible)" == "true" ]]; then exit 0; fi
               ROOT="$(workspaces.shared.path)"
               VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
               TAG_OVERRIDE="$(params.ansible-tags)"
-              if [[ "$(params.skip-mac-discovery)" == "true" ]]; then
-                export SKIP_MAC_DISCOVERY=true
-              else
-                export SKIP_MAC_DISCOVERY=false
-              fi
+              export SKIP_MAC_DISCOVERY=false
               export MAC_DISCOVERY_OUTPUT="${ROOT}/discovered-nodes.yaml"
-              if [[ -n "${TAG_OVERRIDE// }" ]]; then
-                TAGS="${TAG_OVERRIDE}"
-              else
-                TAGS="dns"
-                TAGS="${TAGS},hardware,bmc,redfish,ping,mac-discovery"
-              fi
+              if [[ -n "${TAG_OVERRIDE// }" ]]; then TAGS="${TAG_OVERRIDE}"
+              else TAGS="dns,hardware,bmc,redfish,ping,mac-discovery"; fi
               export ANSIBLE_COLLECTIONS_PATH="${ROOT}/.ansible-collections"
               RESTORE=/tmp/ansible-preflight
-              rm -rf "$RESTORE"
-              mkdir -p "$RESTORE"
+              rm -rf "$RESTORE" && mkdir -p "$RESTORE"
               shopt -s nullglob
               for keypath in /ansible-cm/*; do
                 base=$(basename "$keypath")
@@ -526,17 +364,19 @@ spec:
                 mkdir -p "$RESTORE/$(dirname "$rel")"
                 cp "$keypath" "$RESTORE/$rel"
               done
-              REQ="$RESTORE/requirements.yml"
-              SITE="$RESTORE/site.yml"
-              ansible-galaxy collection install -r "$REQ" -p "$ANSIBLE_COLLECTIONS_PATH"
-              ansible-playbook -i "localhost," -c local "$SITE" \
+              ansible-galaxy collection install -r "$RESTORE/requirements.yml" -p "$ANSIBLE_COLLECTIONS_PATH"
+              ansible-playbook -i "localhost," -c local "$RESTORE/site.yml" \
                 --tags "${TAGS}" \
                 -e ansible_python_interpreter=/usr/bin/python3 \
                 -e mac_discovery_output="${MAC_DISCOVERY_OUTPUT}" \
                 -e @"${VALUES_FILE}"
 
-    - name: merge-and-render-final
-      runAfter: [discover-node-network]
+    - name: replacement-merge-render-final
+      runAfter: [replacement-discover-node-network]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -556,7 +396,7 @@ spec:
           - name: manifest-output-dir
         steps:
           - name: merge-final
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -572,10 +412,11 @@ spec:
               else
                 cp "$BASE" "$MERGED"
               fi
+              apk add --no-cache python3 py3-yaml
+              python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/expand_node_inventory.py" "$MERGED"
               echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
-              echo "Re-merged for final render (includes discovery when present)"
-          - name: clear-replacement-marker
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+          - name: strip-marker
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -584,7 +425,7 @@ spec:
               apk add --no-cache python3 py3-yaml
               python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/strip_replacement_marker.py" "$MERGED"
           - name: helm-final
-            image: {{ .Values.tektonNodeReplacement.images.helm | quote }}
+            image: {{ .Values.tektonZtp.images.helm | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -596,10 +437,13 @@ spec:
               CHART="./$(params.ztp-chart-relative-path)"
               helm lint "$CHART" -f "$VALUES"
               helm template "$(params.cluster-name)" "$CHART" -f "$VALUES" > "${OUT}/manifests.yaml"
-              echo "Final manifests at ${OUT}/manifests.yaml"
 
-    - name: git-mr-final
-      runAfter: [merge-and-render-final]
+    - name: replacement-git-mr-final
+      runAfter: [replacement-merge-render-final]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -618,8 +462,6 @@ spec:
           value: $(params.git-user-name)
         - name: git-user-email
           value: $(params.git-user-email)
-        - name: pr-title-final
-          value: $(params.pr-title-final)
       taskSpec:
         workspaces:
           - name: shared
@@ -631,16 +473,15 @@ spec:
           - name: github-repo-slug
           - name: git-user-name
           - name: git-user-email
-          - name: pr-title-final
         steps:
           - name: push-final-pr
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonNodeReplacement.github.secretName }}
-                    key: {{ .Values.tektonNodeReplacement.github.secretKey }}
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
             script: |
               #!/bin/sh
               set -eu
@@ -649,31 +490,27 @@ spec:
               cd "${ROOT}/src"
               git config user.name "$(params.git-user-name)"
               git config user.email "$(params.git-user-email)"
-              BRANCH="node-replacement-final-$(params.cluster-name)-$(date +%s)"
+              BRANCH="ztp-nr-final-$(params.cluster-name)-$(date +%s)"
               git checkout -b "$BRANCH"
               git add "$(params.manifest-output-dir)/$(params.cluster-name)"
-              git status
-              git commit -m "feat(node-replacement): refresh cluster manifests after hardware swap" || { git status; exit 1; }
+              git commit -m "feat(ztp): node replacement — full ClusterInstance after discovery" || { git status; exit 1; }
               REMOTE="$(params.gitops-repo-url)"
               OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
               git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
               git push -u origin "$BRANCH"
               export GH_TOKEN
-              gh pr create \
-                --repo "$(params.github-repo-slug)" \
-                --base "$(params.git-base-branch)" \
-                --head "$BRANCH" \
-                --title "$(params.pr-title-final) $(params.cluster-name)" \
-                --body "Node replacement: merged discovery + full ClusterInstance (unsuppress provisioning)." 2>&1
+              gh pr create --repo "$(params.github-repo-slug)" --base "$(params.git-base-branch)" --head "$BRANCH" \
+                --title "$(params.pr-title-replacement-final) $(params.cluster-name)" \
+                --body "ZTP: post-replacement manifests (BMC unsuppressed / full render)."
               PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
-              if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
-                echo "$PR_NUM" > "${ROOT}/ztp-pr-number.txt"
-              else
-                : > "${ROOT}/ztp-pr-number.txt"
-              fi
+              echo "${PR_NUM:-}" > "${ROOT}/ztp-pr-number.txt"
 
-    - name: wait-merge-final
-      runAfter: [git-mr-final]
+    - name: replacement-wait-merge-final
+      runAfter: [replacement-git-mr-final]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -681,7 +518,7 @@ spec:
         - name: github-repo-slug
           value: $(params.github-repo-slug)
         - name: skip-wait-merge-final
-          value: $(params.skip-wait-merge-final)
+          value: $(params.skip-replacement-wait-merge-final)
       taskSpec:
         workspaces:
           - name: shared
@@ -690,37 +527,109 @@ spec:
           - name: skip-wait-merge-final
         steps:
           - name: poll-final
-            image: {{ .Values.tektonNodeReplacement.images.alpineTools | quote }}
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonNodeReplacement.github.secretName }}
-                    key: {{ .Values.tektonNodeReplacement.github.secretKey }}
+                    name: {{ .Values.tektonZtp.github.secretName }}
+                    key: {{ .Values.tektonZtp.github.secretKey }}
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.skip-wait-merge-final)" = "true" ]; then exit 0; fi
+              [ "$(params.skip-wait-merge-final)" = "true" ] && exit 0
               apk add --no-cache github-cli bash
               ROOT="$(workspaces.shared.path)"
               export GH_TOKEN
-              POLL={{ .Values.tektonNodeReplacement.waitForMerge.pollIntervalSeconds | default 30 }}
-              MAX_ITER=$(( {{ .Values.tektonNodeReplacement.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
+              POLL={{ .Values.tektonZtp.waitForMerge.pollIntervalSeconds | default 30 }}
+              MAX_ITER=$(( {{ .Values.tektonZtp.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
               PR_NUM=$(cat "${ROOT}/ztp-pr-number.txt" 2>/dev/null || echo "")
               i=0
               while [ "$i" -lt "$MAX_ITER" ]; do
-                [ -n "$PR_NUM" ] || { echo "No final PR number" >&2; exit 1; }
                 STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
-                echo "Final PR state=${STATE}"
-                if [ "$STATE" = "MERGED" ]; then exit 0; fi
-                if [ "$STATE" = "CLOSED" ]; then exit 1; fi
+                [ "$STATE" = "MERGED" ] && exit 0
+                [ "$STATE" = "CLOSED" ] && exit 1
                 i=$((i + 1))
                 sleep "$POLL"
               done
               exit 1
 
-    - name: deploy-watch
-      runAfter: [wait-merge-final]
+    - name: replacement-wait-hub-clusterinstance
+      runAfter: [replacement-wait-merge-final]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+        steps:
+          - name: list-desired-hosts
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              apk add --no-cache python3 py3-yaml
+              python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/node_inventory.py" \
+                hostnames "$MERGED" > "${ROOT}/desired-clusterinstance-hostnames.txt"
+          - name: wait-sync
+            image: {{ .Values.tektonZtp.images.cli | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              ROOT="$(workspaces.shared.path)"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              WANT_FILE="${ROOT}/desired-clusterinstance-hostnames.txt"
+              CLUSTER="$(params.cluster-name)"
+              NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$MERGED")
+              mapfile -t WANT < <(grep -v '^[[:space:]]*$' "$WANT_FILE" 2>/dev/null || true)
+              if [ "${#WANT[@]}" -eq 0 ]; then
+                echo "No desired hostnames from merged values (node_inventory) — skipping hub wait"
+                exit 0
+              fi
+              echo "Waiting for hub ClusterInstance to match Git after merge (Argo sync → unsuppress / new node)..."
+              POLL={{ .Values.tektonZtp.deployWatch.pollIntervalSeconds | default 30 }}
+              MAX_SEC={{ .Values.tektonZtp.nodeReplacement.hubSyncWaitSeconds | default 7200 }}
+              START_TS=$(date +%s)
+              while true; do
+                NOW=$(date +%s)
+                if [ $((NOW - START_TS)) -ge "$MAX_SEC" ]; then
+                  echo "Timeout waiting for ClusterInstance to include desired hostnames" >&2
+                  exit 1
+                fi
+                HAVE=$(oc get clusterinstance "$CLUSTER" -n "$NS" -o jsonpath='{range .spec.nodes[*]}{.hostName}{" "}{end}' 2>/dev/null || true)
+                OK=true
+                for h in "${WANT[@]}"; do
+                  [ -z "$h" ] && continue
+                  if ! echo " $HAVE " | grep -q " ${h} "; then
+                    OK=false
+                    break
+                  fi
+                done
+                if [ "$OK" = true ]; then
+                  echo "ClusterInstance lists desired hostnames: ${WANT[*]}"
+                  exit 0
+                fi
+                echo "Waiting for hub ClusterInstance nodes (have: ${HAVE:-none})..."
+                sleep "$POLL"
+              done
+
+    - name: replacement-deploy-watch
+      runAfter: [replacement-wait-hub-clusterinstance]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["full"]
       workspaces:
         - name: shared
           workspace: shared
@@ -728,7 +637,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: skip-deploy-watch
-          value: $(params.skip-deploy-watch)
+          value: $(params.skip-replacement-deploy-watch)
       taskSpec:
         workspaces:
           - name: shared
@@ -737,25 +646,23 @@ spec:
           - name: skip-deploy-watch
         steps:
           - name: watch
-            image: {{ .Values.tektonNodeReplacement.images.cli | quote }}
+            image: {{ .Values.tektonZtp.images.cli | quote }}
             script: |
               #!/bin/bash
               set -euo pipefail
-              if [ "$(params.skip-deploy-watch)" = "true" ]; then exit 0; fi
+              [ "$(params.skip-deploy-watch)" = "true" ] && exit 0
               ROOT="$(workspaces.shared.path)"
               VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path")"
               CLUSTER="$(params.cluster-name)"
               NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
-              POLL={{ .Values.tektonNodeReplacement.deployWatch.pollIntervalSeconds | default 30 }}
+              POLL={{ .Values.tektonZtp.deployWatch.pollIntervalSeconds | default 30 }}
               START_TS=$(date +%s)
-              MAX_SEC={{ .Values.tektonNodeReplacement.deployWatch.timeoutSeconds | default 14400 }}
+              MAX_SEC={{ .Values.tektonZtp.deployWatch.timeoutSeconds | default 14400 }}
               while true; do
                 NOW=$(date +%s)
-                if [ $((NOW - START_TS)) -ge "$MAX_SEC" ]; then exit 1; fi
+                [ $((NOW - START_TS)) -ge "$MAX_SEC" ] && exit 1
                 READY=$(oc get clusterinstance "$CLUSTER" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
-                echo "ClusterInstance Ready=${READY:-unknown}"
-                if [ "$READY" = "True" ]; then exit 0; fi
-                oc get baremetalhost -n "$NS" -o wide 2>/dev/null || true
+                [ "$READY" = "True" ] && exit 0
                 sleep "$POLL"
               done
 {{- end }}

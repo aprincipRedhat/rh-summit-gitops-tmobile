@@ -2,7 +2,7 @@
 tektonMirror:
   pipeline:
     name: ocp-registry-mirror
-    mirrorImage: quay.io/openshift/origin-cli:latest
+    mirrorImage: quay.io/example/oc-mirror-runner:latest
   images:
     alpineTools: docker.io/alpine:3.19
   imagesetConfigMapKey: ImageSetConfiguration.yaml
@@ -28,10 +28,10 @@ tektonMirror:
     gitUserName: oc-mirror Bot
     gitUserEmail: oc-mirror@local
   exampleConfigMap:
-    enabled: false
+    enabled: true
   pipelineRun:
     example:
-      enabled: false
+      enabled: true
       generateName: ocp-registry-mirror-demo-
       destRegistry: docker://registry.example.com:5000/ocp-mirror
       extraFlags: ""

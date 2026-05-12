@@ -10,10 +10,17 @@ pullSecretRef:
 # Keys rendered as siblings under spec (machineNetwork, clusterNetwork, serviceNetwork, etc.).
 clusterNetworking: {}
 
-# Minimal inventory: hostnames only (MAC/BMC secret refs filled by pipeline discovery merge).
+# Optional split inventory (masters vs workers). Tekton expand_node_inventory.py merges into nodes[] before helm.
+nodeGroups:
+  masters: []
+  workers: []
+
+workerClusterDefaults: {}
+
+# Legacy flat hostname list (MAC/BMC secret refs filled by pipeline discovery merge).
 nodeHostnames: []
 
-# Full ClusterInstance node entries — set by discovery merge, or define statically (legacy) in Git.
+# Full ClusterInstance node entries — set by discovery merge, expand_node_inventory, or define statically (legacy) in Git.
 # Mark exactly one node undergoing replacement with replacementTarget: true (Helm strips this key from rendered YAML).
 nodes: []
 
@@ -21,11 +28,12 @@ nodes: []
 nodeReplacement:
   omitMarkedNodes: false
 
-# When vault.enabled, Helm emits VaultStaticSecret CRs (requires VaultAuth in cluster.namespace).
+# When vault.enabled, Helm emits VaultStaticSecret CRs. Use a namespaced VaultAuth ref so one
+# hub-scoped VaultAuth (see vault-hub-configuration) can serve all spokes: "<vso-ns>/<vault-auth-name>".
 vault:
   enabled: false
   mount: kv-v2
-  vaultAuthRef: vault-auth-spoke
+  vaultAuthRef: vault-secrets-operator/vault-auth
   # printf-style pattern; %s is replaced with each hostname from nodeHostnames (e.g. "%s" alone means hostname-only segment — prefer full logical path per env).
   bmcCredentialsVaultPathPattern: "bmc-credentials-%s"
 

@@ -5,9 +5,9 @@ metadata:
   namespace: openshift-pipelines
 spec:
   description: >-
-    BO2299-style cluster build: clone-repos → optional SDN / Ansible (DNS, ping, Redfish MAC discovery) →
-    optional manual gate → merge pipeline values + generate-cluster-files (helm) → git-commit-and-mr →
-    wait-for-merge → deploy-cluster → optional spoke validation and kube-burner.
+    Single-cluster ZTP: clone → detect optional bare-metal node replacement → standard path
+    (SDN, Ansible, helm, Git PR, deploy) or replacement path (suppress MR, etcd gate, teardown, discovery,
+    final MR, hub sync wait, deploy watch).
   params:
     - name: cluster-name
       type: string
@@ -105,6 +105,33 @@ spec:
       description: >-
         When true, Ansible runs mac-discovery (Vault + Redfish) for hostname-only pipeline values.
         Set false only when nodes[] already include MACs or discovery runs out-of-band.
+    - name: skip-replacement-suppress-mr
+      type: string
+      default: "false"
+      description: Skip suppress-phase MR for node replacement (cluster already suppressed).
+    - name: skip-replacement-wait-merge-suppress
+      type: string
+      default: "false"
+    - name: replacement-execute-destructive
+      type: string
+      default: "false"
+      description: When true, replacement path deletes spoke Node and hub BareMetalHost after etcd gate.
+    - name: replacement-skip-etcd-manual-gate
+      type: string
+      default: "false"
+      description: When true, skip etcd ConfigMap pause for control-plane replacement (dangerous).
+    - name: skip-replacement-wait-merge-final
+      type: string
+      default: "false"
+    - name: skip-replacement-deploy-watch
+      type: string
+      default: "false"
+    - name: pr-title-replacement-suppress
+      type: string
+      default: "chore(ztp): suppress ClusterInstance node for replacement"
+    - name: pr-title-replacement-final
+      type: string
+      default: "feat(ztp): node replacement final manifests"
   workspaces:
     - name: shared
       description: PVC holding cloned repo and rendered manifests
@@ -175,8 +202,53 @@ spec:
                 echo cluster-exists=false >> "${ROOT}/fleet-context.env"
               fi
 
-    - name: preflight-sdn
+    - name: detect-node-replacement
       runAfter: [clone-repos]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+      taskSpec:
+        workspaces:
+          - name: shared
+        results:
+          - name: replacement-flow
+            type: string
+        params:
+          - name: cluster-name
+          - name: manifest-output-dir
+        steps:
+          - name: compute-flow
+            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache python3 py3-yaml
+              ROOT="$(workspaces.shared.path)"
+              set -a
+              # shellcheck source=/dev/null
+              . "${ROOT}/fleet-context.env" || true
+              set +a
+              CE="${cluster_exists:-false}"
+              PV="$(cat "${ROOT}/pipeline-values.path")"
+              MF="${ROOT}/src/$(params.manifest-output-dir)/$(params.cluster-name)/manifests.yaml"
+              SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/detect_cluster_replacement.py"
+              if [ ! -f "$PV" ]; then echo "missing pipeline values" >&2; exit 1; fi
+              if [ -f "$MF" ]; then MP="$MF"; else MP=""; fi
+              FLOW=$(python3 "$SCRIPT" "$PV" "$MP" "$CE")
+              printf '%s' "$FLOW" > "$(results.replacement-flow.path)"
+              echo "replacement-flow=${FLOW}"
+
+    - name: preflight-sdn
+      runAfter: [detect-node-replacement]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -216,6 +288,10 @@ spec:
 
     - name: discover-node-network
       runAfter: [preflight-sdn]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -303,6 +379,10 @@ spec:
 
     - name: preflight-network
       runAfter: [discover-node-network]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -337,6 +417,10 @@ spec:
 
     - name: manual-approval-gate
       runAfter: [preflight-network]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       params:
         - name: skip-manual-approval-gate
           value: $(params.skip-manual-approval-gate)
@@ -381,6 +465,10 @@ spec:
 
     - name: generate-cluster-files
       runAfter: [manual-approval-gate]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -410,12 +498,13 @@ spec:
               DISC="${ROOT}/discovered-nodes.yaml"
               SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py"
               rm -f "${MERGED}"
+              apk add --no-cache python3 py3-yaml
               if [ -f "$DISC" ]; then
-                apk add --no-cache python3 py3-yaml
                 python3 "$SCRIPT" "$BASE" "$DISC" "$MERGED"
               else
                 cp "$BASE" "$MERGED"
               fi
+              python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/expand_node_inventory.py" "$MERGED"
               echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
               echo "Effective values file: $MERGED"
           - name: validate-pipeline-values
@@ -436,8 +525,9 @@ spec:
                 echo "cluster.name in pipeline values ($VAL) must match PipelineRun param cluster-name ($EXPECT)" >&2
                 exit 1
               fi
-              if ! grep -qE '^nodes:' "$VALUES_FILE"; then
-                echo "effective values must define nodes: (merge MAC discovery output or use legacy static nodes in Git)" >&2
+              apk add --no-cache python3 py3-yaml
+              INV="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/node_inventory.py"
+              if ! python3 "$INV" check-render "$VALUES_FILE"; then
                 exit 1
               fi
           - name: helm-template-and-lint
@@ -457,6 +547,10 @@ spec:
 
     - name: git-commit-and-mr
       runAfter: [generate-cluster-files]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -562,6 +656,10 @@ spec:
 
     - name: wait-for-merge
       runAfter: [git-commit-and-mr]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -625,6 +723,10 @@ spec:
 
     - name: deploy-cluster
       runAfter: [wait-for-merge]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -699,6 +801,10 @@ spec:
 
     - name: post-deploy-validation
       runAfter: [deploy-cluster]
+      when:
+        - input: $(tasks.detect-node-replacement.results.replacement-flow)
+          operator: in
+          values: ["none"]
       workspaces:
         - name: shared
           workspace: shared
@@ -824,3 +930,5 @@ spec:
                 exit 1
               fi
               kube-burner init -c "${CONFIG}" --uuid "ztp-$(params.cluster-name)"
+
+{{ include "ztp.nodeReplacementTasks" . }}

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: summit-gitops-repos-config-sentinel
+  name: summit-gitops-repos-config-gitops-metadata
   namespace: {{ .Values.gitopsReposConfig.defaultNamespace }}
 data:
   chart: gitops-repos-config

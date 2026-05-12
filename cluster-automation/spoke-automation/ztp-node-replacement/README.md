@@ -1,5 +1,7 @@
 # Chart: ztp-node-replacement
 
+**Prefer [`ztp-pipeline`](../ztp-pipeline/README.md)** for new clusters: after **`clone-repos`**, **`detect-node-replacement`** chooses **`replacement-flow=full`** vs **`none`** and runs the same suppress → teardown → discovery → final MR path inside the main ZTP pipeline. This chart remains for hubs that still deploy **`app-tekton-node-replacement`** (`tektonNodeReplacement.enabled`).
+
 Tekton **Pipeline** for bare-metal **node replacement**: suppress the marked node in **ClusterInstance** (Git MR), merge and wait, perform spoke teardown (with **etcd** manual gate for control-plane nodes), **Redfish MAC discovery**, final **helm template** + MR, optional **deploy watch**.
 
 ## Prerequisites

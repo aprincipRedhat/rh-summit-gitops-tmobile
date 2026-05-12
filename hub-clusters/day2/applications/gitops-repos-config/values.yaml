@@ -1,12 +1,12 @@
 # Override via hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → gitopsReposConfig
 gitopsReposConfig:
-  enabled: false
+  enabled: true
   defaultNamespace: openshift-gitops
   vaultStaticSecrets: []
   # Example — requires VaultAuth (etc.) in the same namespace as each VaultStaticSecret:
   # - name: rh-summit-gitops-repo
   #   namespace: openshift-gitops
-  #   vaultAuthRef: vault-auth-gitops
+  #   vaultAuthRef: vault-secrets-operator/vault-auth
   #   mount: kv-v2
   #   path: secret/data/gitops/rh-summit
   #   type: kv-v2

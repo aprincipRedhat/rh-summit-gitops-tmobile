@@ -1,0 +1,27 @@
+{{- if .Values.acmDay1.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-acm-day1
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: hub-clusters/day1/acm-day1
+    helm:
+      releaseName: acm-day1
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromDay1AcmChart" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}

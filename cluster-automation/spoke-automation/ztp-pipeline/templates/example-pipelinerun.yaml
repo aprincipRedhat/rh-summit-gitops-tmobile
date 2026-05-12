@@ -45,6 +45,18 @@ spec:
       value: "false"
     - name: pr-title-prefix-modify
       value: {{ .Values.tektonZtp.pipelineRun.example.prTitlePrefixModify | quote }}
+    - name: skip-replacement-suppress-mr
+      value: "false"
+    - name: skip-replacement-wait-merge-suppress
+      value: "false"
+    - name: replacement-execute-destructive
+      value: "false"
+    - name: replacement-skip-etcd-manual-gate
+      value: "false"
+    - name: skip-replacement-wait-merge-final
+      value: "false"
+    - name: skip-replacement-deploy-watch
+      value: "false"
   workspaces:
     - name: shared
       volumeClaimTemplate:

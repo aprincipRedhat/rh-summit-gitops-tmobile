@@ -1,5 +1,5 @@
 tenantMirrorTriggers:
-  enabled: false
+  enabled: true
   eventListener:
     name: mirror-tenant-listener
   serviceAccount:
