@@ -20,7 +20,7 @@ policies:
     severity: high
     manifests:
       # Per-cluster pins: hub ConfigMap <cluster>-unique-config in ztp-common (Helm from 99-pipeline-values operators:).
-      - path: ../../../../../source-crs/generic-operatorpolicy.yaml
+      - path: source-crs/generic-operatorpolicy.yaml
         patches:
           - apiVersion: policy.open-cluster-management.io/v1beta1
             kind: OperatorPolicy
@@ -38,7 +38,7 @@ policies:
                 startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
               versions:
                 - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
-      - path: ../../../../../source-crs/generic-operatorpolicy.yaml
+      - path: source-crs/generic-operatorpolicy.yaml
         patches:
           - apiVersion: policy.open-cluster-management.io/v1beta1
             kind: OperatorPolicy

@@ -18,9 +18,9 @@ policies:
     remediationAction: enforce
     severity: medium
     manifests:
-      - path: ../../../../../source-crs/generic-argocd-instance-resources.yaml
+      - path: source-crs/generic-argocd-instance-resources.yaml
         patches:
-          - apiVersion: argoproj.io/v1beta1
+          - apiVersion: argoproj.io/v1alpha1
             kind: ArgoCD
             metadata:
               name: openshift-gitops
