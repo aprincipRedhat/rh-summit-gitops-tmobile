@@ -54,16 +54,15 @@
     status_code: [200]
   register: _eth_coll
 
-- name: Build absolute member URLs
+- name: Initialize Redfish member URL list for this host
   ansible.builtin.set_fact:
-    _member_urls: >-
-      {{
-        _eth_coll.json.Members | default([])
-        | map(attribute='@odata.id')
-        | map('regex_replace', '^/', '')
-        | map('regex_replace', '^', 'https://' ~ _host_part ~ '/')
-        | list
-      }}
+    _member_urls: []
+
+- name: Append each EthernetInterface member URL
+  ansible.builtin.set_fact:
+    _member_urls: "{{ _member_urls + [ 'https://' ~ _host_part ~ '/' ~ (item['@odata.id'] | regex_replace('^/', '')) ] }}"
+  loop: "{{ _eth_coll.json.Members | default([]) }}"
+  when: item is mapping and item['@odata.id'] is defined
 
 - name: Fail when no Ethernet interfaces reported
   ansible.builtin.fail:

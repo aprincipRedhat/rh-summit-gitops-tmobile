@@ -84,6 +84,11 @@ flowchart TD
 3. Output is committed under **`spoke-clusters/<env>/<site>/<hub>/clusters/<cluster>/manifests.yaml`** (by default per hub **`values.yaml`**).
 4. OpenShift GitOps **`ApplicationSet`** (from **`hub-clusters/day2/app-of-apps`**) discovers each `clusters/<cluster>/` directory.
 
+## Local verification
+
+- **Python helpers** (`merge_pipeline_values.py`, `validate_replacement_marker.py`, `strip_replacement_marker.py`) need **PyYAML** (`pip install pyyaml`).
+- **Ansible** (`spoke-automation/ztp-pipeline/files/ansible/site.yml`): install **ansible-core**, then run **`ansible-playbook -i localhost, site.yml --connection local`** with extra vars pointing at your lab BMCs or a local Redfish/Vault mock. The path **`cluster-automation/tests/`** is **gitignored** so you can keep a private mock harness, **`run_local_tests.sh`**, and fixtures there without pushing them.
+
 ## Documentation
 
 - [spoke-automation/ztp-pipeline/README.md](spoke-automation/ztp-pipeline/README.md)

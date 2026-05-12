@@ -1,19 +1,14 @@
 ---
 # ICMP to BMC host extracted from each node's bmcAddress (works with redfish+http(s) URLs).
+# Strip optional :port for ICMP (ping does not accept host:port on BSD/macOS).
 - name: Derive BMC hosts from nodes[]
   ansible.builtin.set_fact:
-    bmc_hosts: >-
-      {{
-        nodes | default([])
-        | selectattr('bmcAddress', 'defined')
-        | map(attribute='bmcAddress')
-        | map('regex_replace', '^[^:]+://([^/]+).*', '\\1')
-        | list
-      }}
+    bmc_hosts: "{{ nodes | default([]) | selectattr('bmcAddress', 'defined') | map(attribute='bmcAddress') | map('regex_replace', '^[^:]+://([^/]+).*', '\\1') | map('regex_replace', '^([^\\[\\]]+):[0-9]+$', '\\1') | list }}"
   when: nodes is defined
 
+# Avoid `ping -W` — Linux uses seconds, BSD/macOS uses milliseconds (3 ms is too tight).
 - name: Ping each BMC address
-  ansible.builtin.command: "ping -c 1 -W 3 {{ item }}"
+  ansible.builtin.command: "ping -c 1 {{ item }}"
   loop: "{{ bmc_hosts | default([]) }}"
   changed_when: false
   register: ping_results
