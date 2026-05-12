@@ -1,0 +1,17 @@
+{{- /*
+Patch the default openshift-gitops ArgoCD instance so that members of the
+system:cluster-admins OpenShift group are automatically granted ArgoCD
+role:admin. This is applied via a strategic merge on the ArgoCD CR in the
+openshift-gitops namespace.
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  rbac:
+    defaultPolicy: role:readonly
+    policy: |
+      g, system:cluster-admins, role:admin
+    scopes: '[groups]'
