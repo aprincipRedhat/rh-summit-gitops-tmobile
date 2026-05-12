@@ -37,7 +37,7 @@ policies:
                 sourceNamespace: openshift-marketplace
                 startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
               versions:
-{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.approvedVersionsYaml" | nindent 16 hub}}
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
       - path: ../../../../../source-crs/generic-operatorpolicy.yaml
         patches:
           - apiVersion: policy.open-cluster-management.io/v1beta1
@@ -55,4 +55,4 @@ policies:
                 sourceNamespace: openshift-marketplace
                 startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
               versions:
-{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.approvedVersionsYaml" | nindent 16 hub}}
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'

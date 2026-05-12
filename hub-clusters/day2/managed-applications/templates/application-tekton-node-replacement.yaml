@@ -17,6 +17,12 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-pipelines
+  ignoreDifferences:
+    - group: tekton.dev
+      kind: Pipeline
+      jsonPointers:
+        - /spec/tasks
+        - /spec/finally
   syncPolicy:
     automated:
       prune: true
