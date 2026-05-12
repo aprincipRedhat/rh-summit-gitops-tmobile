@@ -10,21 +10,21 @@
 Relative path from hub-clusters/day2/applications/<chart>/ to the per-hub values file.
 */}}
 {{- define "managed-apps.hubValuesFromDay2App" -}}
-../../99-environments/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
+../../hub-env-values/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
 {{- end -}}
 
 {{/*
 Relative path from hub-clusters/day1/acm-day1/ to the per-hub values file (hub Day2 convention).
 */}}
 {{- define "managed-apps.hubValuesFromDay1AcmChart" -}}
-../../day2/99-environments/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
+../../day2/hub-env-values/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
 {{- end -}}
 
 {{/*
 Relative path from cluster-automation/spoke-automation/<pipeline>/ to the per-hub values file.
 */}}
 {{- define "managed-apps.hubValuesFromClusterAutomation" -}}
-../../../hub-clusters/day2/99-environments/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
+../../../hub-clusters/day2/hub-env-values/{{ .Values.hub.environment }}/{{ .Values.hub.site }}/{{ .Values.hub.clusterName }}/values.yaml
 {{- end -}}
 
 {{- define "managed-apps.spokePoliciesPath" -}}

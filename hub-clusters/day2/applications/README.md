@@ -2,7 +2,7 @@
 
 Only **Helm charts** that child OpenShift GitOps `Application` resources point at live here (operator policies, GitOps patch, ZTP namespace, hub platform, etc.).
 
-The **`Application` CRs** that reference these paths are rendered by **`../managed-applications/`** (Helm chart next to this directory). Hub identity for **`helm.valueFiles`** → **`../99-environments/...`** is set in **`../managed-applications/values.yaml`**.
+The **`Application` CRs** that reference these paths are rendered by **`../managed-applications/`** (Helm chart next to this directory). Hub identity for **`helm.valueFiles`** → **`../hub-env-values/...`** is set in **`../managed-applications/values.yaml`**.
 
 ## Charts
 
@@ -19,4 +19,4 @@ The **`Application` CRs** that reference these paths are rendered by **`../manag
 ## Related
 
 - Child `Application` templates: [../managed-applications/README.md](../managed-applications/README.md)
-- Shared per-hub values: [../99-environments/README.md](../99-environments/README.md)
+- Shared per-hub values: [../hub-env-values/README.md](../hub-env-values/README.md)

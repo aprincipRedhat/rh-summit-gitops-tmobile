@@ -1,11 +1,14 @@
-{{- if and .Values.tenantMirrorTriggers.enabled .Values.tektonMirror }}
+{{- if .Values.tektonMirror }}
+{{- $tm := .Values.tenantMirrorTriggers | default dict -}}
+{{- $elsa := ($tm.serviceAccount | default dict).name | default "el-mirror-tenant" -}}
+{{- $eln := ($tm.eventListener | default dict).name | default "mirror-tenant-listener" -}}
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
-  name: {{ .Values.tenantMirrorTriggers.eventListener.name }}
+  name: {{ $eln }}
   namespace: openshift-pipelines
 spec:
-  serviceAccountName: {{ .Values.tenantMirrorTriggers.serviceAccount.name }}
+  serviceAccountName: {{ $elsa }}
   triggers:
     - name: tenant-oc-mirror
       interceptors:

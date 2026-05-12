@@ -1,6 +1,6 @@
 # Chart: `hub-platform-day2`
 
-Optional hub-wide configuration driven by **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`** (`hubPlatform` key).
+Optional hub-wide configuration driven by **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`** (`hubPlatform` key).
 
 ## Contents
 
@@ -21,7 +21,7 @@ The **`IngressController`** manifest sets **`metadata.namespace: openshift-ingre
 
 OpenShift GitOps Application: [managed-applications/templates/application-hub-platform-day2.yaml](../../managed-applications/templates/application-hub-platform-day2.yaml) — `path: hub-clusters/day2/applications/hub-platform-day2`, `destination.namespace: openshift-config`.
 
-## Example (`99-environments` fragment)
+## Example (`hub-env-values` fragment)
 
 ```yaml
 hubPlatform:
@@ -42,5 +42,5 @@ hubPlatform:
 
 ```bash
 helm template hub-platform-day2 ./hub-clusters/day2/applications/hub-platform-day2 \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
 ```

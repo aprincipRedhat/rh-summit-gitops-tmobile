@@ -39,7 +39,7 @@ When **`ansible-tags`** is non-empty, it overrides managed tag selection (you mu
 
 ## Hub values (`tektonZtp`)
 
-Set in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**:
+Set in **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**:
 
 - **`manualApproval.timeoutSeconds`** — Manual gate polling cap (surfaced as Pipeline default).
 - **`clusterValidation.timeoutSeconds`** — Post-deploy wait surfaces.
@@ -69,7 +69,7 @@ See **`spoke-clusters/.../99-pipeline-values/README.md`**: **`sdnValidation.heal
 
 ```bash
 helm template tekton-ztp-pipeline ./cluster-automation/spoke-automation/ztp-pipeline \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
 ```
 
 ## Related

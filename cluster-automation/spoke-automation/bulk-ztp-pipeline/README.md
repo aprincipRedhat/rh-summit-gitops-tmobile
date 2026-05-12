@@ -11,7 +11,7 @@ Tekton **Pipeline** that lists ACM `ManagedCluster` objects and starts child **`
 
 ## Hub values
 
-Configured under **`tektonBulkZtp`** in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**. **`childDefaults.manifestOutputDir`** and **`ztpChartRelativePath`** must match the hub’s **`spoke-clusters/.../clusters/`** layout.
+Configured under **`tektonBulkZtp`** in **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**. **`childDefaults.manifestOutputDir`** and **`ztpChartRelativePath`** must match the hub’s **`spoke-clusters/.../clusters/`** layout.
 
 ## GitOps
 
@@ -22,5 +22,5 @@ Configured under **`tektonBulkZtp`** in **`hub-clusters/day2/99-environments/<en
 
 ```bash
 helm template tekton-bulk-ztp-pipeline ./cluster-automation/spoke-automation/bulk-ztp-pipeline \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
 ```

@@ -1,4 +1,4 @@
-# Override from hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → ztpDisconnected
+# Override from hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml → ztpDisconnected
 ztpDisconnected:
   enabled: true
 

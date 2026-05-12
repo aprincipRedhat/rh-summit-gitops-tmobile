@@ -1,16 +1,16 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ printf "%s-role" .Values.tektonZtp.serviceAccount.name }}
+  name: {{ printf "%s-role" (dig "tektonZtp" "serviceAccount" "name" "pipeline-ztp-gitops" (fromJson (toJson .Values))) }}
   namespace: openshift-pipelines
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: [{{ .Values.tektonZtp.github.secretName | quote }}]
+    resourceNames: [{{ dig "tektonZtp" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) | quote }}]
     verbs: ["get"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    resourceNames: [{{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}]
+    resourceNames: [{{ dig "tektonZtp" "ansible" "preflightConfigMapName" "ztp-ansible-preflight" (fromJson (toJson .Values)) | quote }}]
     verbs: ["get"]
   # Manual approval gate creates/patches ConfigMaps named ztp-manual-<cluster>-approval in openshift-pipelines
   - apiGroups: [""]

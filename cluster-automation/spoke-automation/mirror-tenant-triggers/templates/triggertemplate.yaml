@@ -1,4 +1,9 @@
-{{- if and .Values.tenantMirrorTriggers.enabled .Values.tektonMirror }}
+{{- if .Values.tektonMirror }}
+{{- $tm := .Values.tenantMirrorTriggers | default dict -}}
+{{- $pref := $tm.pipelineRef | default dict -}}
+{{- $mpsa := $tm.mirrorPipelineSA | default dict -}}
+{{- $gs := .Values.tektonMirror.gitSync | default dict -}}
+{{- $rbac := .Values.tektonMirror.rbac | default dict -}}
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
@@ -17,9 +22,9 @@ spec:
         generateName: ocp-registry-mirror-tenant-
       spec:
         pipelineRef:
-          name: {{ .Values.tenantMirrorTriggers.pipelineRef.name }}
+          name: {{ $pref.name | default "ocp-registry-mirror" }}
         taskRunTemplate:
-          serviceAccountName: {{ .Values.tenantMirrorTriggers.mirrorPipelineSA.name }}
+          serviceAccountName: {{ $mpsa.name | default "pipeline-oc-mirror" }}
         podTemplate:
           securityContext:
             fsGroup: 65532
@@ -31,32 +36,32 @@ spec:
           - name: skip-git-sync
             value: $(tt.params.skip_git_sync)
           - name: gitops-repo-url
-            value: {{ .Values.tektonMirror.gitSync.gitopsRepoUrl | quote }}
+            value: {{ $gs.gitopsRepoUrl | quote }}
           - name: git-revision
-            value: {{ .Values.tektonMirror.gitSync.gitRevision | quote }}
+            value: {{ $gs.gitRevision | default "main" | quote }}
           - name: git-base-branch
-            value: {{ .Values.tektonMirror.gitSync.gitBaseBranch | quote }}
+            value: {{ $gs.gitBaseBranch | default "main" | quote }}
           - name: github-repo-slug
-            value: {{ .Values.tektonMirror.gitSync.githubRepoSlug | quote }}
+            value: {{ $gs.githubRepoSlug | quote }}
           - name: hub-values-relative-path
-            value: {{ .Values.tektonMirror.gitSync.hubValuesRelativePath | quote }}
+            value: {{ $gs.hubValuesRelativePath | quote }}
           - name: git-user-name
-            value: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
+            value: {{ $gs.gitUserName | default "oc-mirror Bot" | quote }}
           - name: git-user-email
-            value: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+            value: {{ $gs.gitUserEmail | default "oc-mirror@local" | quote }}
           - name: pr-title
             value: "chore(tenant): oc-mirror from EventListener"
           - name: policy-manifest-relative-path
-            value: {{ .Values.tektonMirror.gitSync.policyManifestRelativePath | default "" | quote }}
+            value: {{ $gs.policyManifestRelativePath | default "" | quote }}
           - name: skip-policy-manifest-sync
-            value: {{ .Values.tektonMirror.gitSync.skipPolicyManifestSync | default "false" | quote }}
+            value: {{ $gs.skipPolicyManifestSync | default "false" | quote }}
         workspaces:
           - name: imageset
             configMap:
               name: $(tt.params.imageset_configmap_name)
           - name: registry-auth
             secret:
-              secretName: {{ .Values.tektonMirror.rbac.secretName }}
+              secretName: {{ $rbac.secretName | default "mirror-registry-pullsecret" }}
           - name: shared
             volumeClaimTemplate:
               metadata:
@@ -65,5 +70,5 @@ spec:
                 accessModes: ["ReadWriteOnce"]
                 resources:
                   requests:
-                    storage: {{ .Values.tenantMirrorTriggers.workspaces.sharedStorage | quote }}
+                    storage: {{ (($tm.workspaces | default dict).sharedStorage | default "5Gi") | quote }}
 {{- end }}

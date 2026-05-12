@@ -1,4 +1,4 @@
-# App-of-apps: syncs hub-clusters/day2/managed-applications as Helm (values.yaml selects hub segment for 99-environments paths).
+# App-of-apps: syncs hub-clusters/day2/managed-applications as Helm (values.yaml selects hub segment for hub-env-values paths).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

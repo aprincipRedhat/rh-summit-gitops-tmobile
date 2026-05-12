@@ -1,7 +1,11 @@
+{{- $bz := .Values.tektonBulkZtp | default dict -}}
+{{- $bulk := $bz.bulk | default dict -}}
+{{- $target := $bz.target | default dict -}}
+{{- $child := $bz.childDefaults | default dict -}}
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ .Values.tektonBulkZtp.pipeline.name }}
+  name: {{ ($bz.pipeline | default dict).name | default "bulk-ztp-managed-clusters" }}
   namespace: openshift-pipelines
 spec:
   description: >-
@@ -11,89 +15,89 @@ spec:
   params:
     - name: dry-run
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.dryRun | default "false" | quote }}
+      default: {{ $bulk.dryRun | default "false" | quote }}
       description: When true, print ManagedClusters that would run and exit without creating PipelineRuns.
     - name: max-concurrent
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.maxConcurrent | toString | quote }}
+      default: {{ $bulk.maxConcurrent | default 3 | toString | quote }}
     - name: exclude-managed-clusters
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.excludeManagedClusters | quote }}
+      default: {{ $bulk.excludeManagedClusters | default "local-cluster" | quote }}
     - name: managed-cluster-label-selector
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.managedClusterLabelSelector | quote }}
+      default: {{ $bulk.managedClusterLabelSelector | default "" | quote }}
     - name: target-pipeline-name
       type: string
-      default: {{ .Values.tektonBulkZtp.target.pipelineName | quote }}
+      default: {{ $target.pipelineName | default "ztp-cluster-render-pr" | quote }}
     - name: target-pipeline-namespace
       type: string
-      default: {{ .Values.tektonBulkZtp.target.pipelineNamespace | quote }}
+      default: {{ $target.pipelineNamespace | default "openshift-pipelines" | quote }}
     - name: child-service-account-name
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.childServiceAccountName | quote }}
+      default: {{ $bulk.childServiceAccountName | default "pipeline-ztp-gitops" | quote }}
     - name: child-wait-timeout-seconds
       type: string
-      default: {{ .Values.tektonBulkZtp.bulk.childWaitTimeoutSeconds | quote }}
+      default: {{ $bulk.childWaitTimeoutSeconds | default "7200" | quote }}
     - name: child-gitops-repo-url
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.gitopsRepoUrl | quote }}
+      default: {{ $child.gitopsRepoUrl | default "https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git" | quote }}
     - name: child-git-revision
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.gitRevision | quote }}
+      default: {{ $child.gitRevision | default "main" | quote }}
     - name: child-git-base-branch
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.gitBaseBranch | quote }}
+      default: {{ $child.gitBaseBranch | default "main" | quote }}
     - name: child-github-repo-slug
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.githubRepoSlug | quote }}
+      default: {{ $child.githubRepoSlug | default "aprincipRedhat/rh-summit-gitops-tmobile" | quote }}
     - name: child-ztp-chart-relative-path
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.ztpChartRelativePath | quote }}
+      default: {{ $child.ztpChartRelativePath | default "cluster-automation/ztp-spoke" | quote }}
     - name: child-manifest-output-dir
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.manifestOutputDir | quote }}
+      default: {{ $child.manifestOutputDir | default "" | quote }}
     - name: child-skip-ansible
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.skipAnsible | quote }}
+      default: {{ $child.skipAnsible | default "true" | quote }}
     - name: child-ansible-tags
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.ansibleTags | quote }}
+      default: {{ $child.ansibleTags | default "" | quote }}
     - name: child-run-sdn-prechecks
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.runSdnPrechecks | default "false" | quote }}
+      default: {{ $child.runSdnPrechecks | default "false" | quote }}
     - name: child-run-hardware-validation
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.runHardwareValidation | default "true" | quote }}
+      default: {{ $child.runHardwareValidation | default "true" | quote }}
     - name: child-run-network-connectivity-test
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.runNetworkConnectivityTest | default "true" | quote }}
+      default: {{ $child.runNetworkConnectivityTest | default "true" | quote }}
     - name: child-skip-manual-approval-gate
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.skipManualApprovalGate | default "true" | quote }}
+      default: {{ $child.skipManualApprovalGate | default "true" | quote }}
     - name: child-run-post-deploy-validation
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.runPostDeployValidation | default "false" | quote }}
+      default: {{ $child.runPostDeployValidation | default "false" | quote }}
     - name: child-run-kube-burner-tests
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.runKubeBurnerTests | default "false" | quote }}
+      default: {{ $child.runKubeBurnerTests | default "false" | quote }}
     - name: child-git-user-name
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.gitUserName | quote }}
+      default: {{ $child.gitUserName | default "ZTP OCP Pipelines" | quote }}
     - name: child-git-user-email
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.gitUserEmail | quote }}
+      default: {{ $child.gitUserEmail | default "ztp-tekton@local" | quote }}
     - name: child-pr-title-prefix
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.prTitlePrefix | quote }}
+      default: {{ $child.prTitlePrefix | default "Add cluster" | quote }}
     - name: child-pr-title-prefix-modify
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.prTitlePrefixModify | quote }}
+      default: {{ $child.prTitlePrefixModify | default "Update cluster" | quote }}
     - name: child-skip-wait-for-merge
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.skipWaitForMerge | quote }}
+      default: {{ $child.skipWaitForMerge | default "false" | quote }}
     - name: child-skip-deploy-watch
       type: string
-      default: {{ .Values.tektonBulkZtp.childDefaults.skipDeployWatch | quote }}
+      default: {{ $child.skipDeployWatch | default "false" | quote }}
   tasks:
     - name: spawn-ztp-pipelineruns
       taskSpec:
@@ -128,7 +132,7 @@ spec:
           - name: child-skip-deploy-watch
         steps:
           - name: bulk-spawn
-            image: {{ .Values.tektonBulkZtp.images.cli | quote }}
+            image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.16"
             script: |
               #!/usr/bin/env bash
               set -euo pipefail

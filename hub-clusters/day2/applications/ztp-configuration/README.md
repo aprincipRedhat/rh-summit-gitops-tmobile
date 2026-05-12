@@ -12,11 +12,11 @@ Application template: [managed-applications/templates/application-ztp-configurat
 
 ## Values
 
-Override **`ztpConfiguration.namespace`** in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`** if your fleet uses a different name (must match **`ztp-spoke`** pipeline values).
+Override **`ztpConfiguration.namespace`** in **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`** if your fleet uses a different name (must match **`ztp-spoke`** pipeline values).
 
 ## Local render
 
 ```bash
 helm template ztp-configuration ./hub-clusters/day2/applications/ztp-configuration \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
 ```

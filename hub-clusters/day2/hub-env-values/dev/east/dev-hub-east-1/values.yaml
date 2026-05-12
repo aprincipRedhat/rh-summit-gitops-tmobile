@@ -20,6 +20,9 @@ vaultBootstrap:
     secretId: "REPLACE_ME"
 
 tektonZtp:
+  images:
+    # Build custom-container-images/kube-burner-runner; replace registry host with your mirror.
+    kubeBurner: registry.ocp.example/kube-burner-runner:latest
   pipelineRun:
     example:
       clusterName: dev-east-us-1
@@ -30,8 +33,27 @@ tektonBulkZtp:
     manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
 
 tektonMirror:
+  pipeline:
+    # Replace with your built image from custom-container-images/oc-mirror (must include oc-mirror/oc mirror, yq, gh, jq, git).
+    mirrorImage: registry.ocp.example/oc-mirror-runner:latest
+  imageSetConfiguration: |
+    kind: ImageSetConfiguration
+    apiVersion: mirror.openshift.io/v1alpha2
+    storageConfig:
+      registry:
+        imageURL: placeholder.example/oc-mirror-metadata
+        skipTLS: true
+    mirror:
+      platform:
+        architectures:
+          - amd64
+        channels:
+          - name: stable-4.16
+            type: ocp
+            minVersion: 4.16.0
+            maxVersion: 4.16.0
   gitSync:
     gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
-    hubValuesRelativePath: hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+    hubValuesRelativePath: hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
     policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml

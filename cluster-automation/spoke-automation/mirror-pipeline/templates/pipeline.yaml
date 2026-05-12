@@ -1,12 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ .Values.tektonMirror.pipeline.name }}
+  name: {{ dig "tektonMirror" "pipeline" "name" "ocp-registry-mirror" (fromJson (toJson .Values)) }}
   namespace: openshift-pipelines
 spec:
   description: >-
     oc mirror → write IDMS/ITMS artifacts to workspace → merge ztpDisconnected.imageDigestMirrorSets /
-    imageTagMirrorSets into hub 99-environments values.yaml → commit + GitHub PR → Argo reapplies
+    imageTagMirrorSets into hub hub-env-values values.yaml → commit + GitHub PR → Argo reapplies
     ztp-disconnected-configuration (ConfigMap mirror YAML for disconnected ZTP / assisted-installer; not IDMS/ITMS CRs on the hub).
     Optionally writes the same ImageDigestMirrorSet/ImageTagMirrorSet YAML bundle under spoke-clusters/.../policies/manifests for ACM Policy GitOps.
   params:
@@ -18,40 +18,40 @@ spec:
       default: ""
     - name: skip-git-sync
       type: string
-      default: {{ .Values.tektonMirror.gitSync.skip | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "skip" "false" (fromJson (toJson .Values)) | quote }}
       description: If true, skip clone/merge/PR (mirror output remains under workspace/mirror-artifacts only).
     - name: gitops-repo-url
       type: string
-      default: {{ .Values.tektonMirror.gitSync.gitopsRepoUrl | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "gitopsRepoUrl" "" (fromJson (toJson .Values)) | quote }}
     - name: git-revision
       type: string
-      default: {{ .Values.tektonMirror.gitSync.gitRevision | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "gitRevision" "main" (fromJson (toJson .Values)) | quote }}
     - name: git-base-branch
       type: string
-      default: {{ .Values.tektonMirror.gitSync.gitBaseBranch | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "gitBaseBranch" "main" (fromJson (toJson .Values)) | quote }}
     - name: github-repo-slug
       type: string
-      default: {{ .Values.tektonMirror.gitSync.githubRepoSlug | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "githubRepoSlug" "" (fromJson (toJson .Values)) | quote }}
     - name: hub-values-relative-path
       type: string
-      default: {{ .Values.tektonMirror.gitSync.hubValuesRelativePath | quote }}
-      description: Path from repo root to the hub 99-environments values.yaml to patch (IDMS/ITMS merge).
+      default: {{ dig "tektonMirror" "gitSync" "hubValuesRelativePath" "" (fromJson (toJson .Values)) | quote }}
+      description: Path from repo root to the hub hub-env-values values.yaml to patch (IDMS/ITMS merge).
     - name: git-user-name
       type: string
-      default: {{ .Values.tektonMirror.gitSync.gitUserName | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "gitUserName" "oc-mirror Bot" (fromJson (toJson .Values)) | quote }}
     - name: git-user-email
       type: string
-      default: {{ .Values.tektonMirror.gitSync.gitUserEmail | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "gitUserEmail" "oc-mirror@local" (fromJson (toJson .Values)) | quote }}
     - name: pr-title
       type: string
-      default: "chore: sync oc-mirror IDMS/ITMS into hub 99-environments"
+      default: "chore: sync oc-mirror IDMS/ITMS into hub hub-env-values"
     - name: policy-manifest-relative-path
       type: string
-      default: {{ .Values.tektonMirror.gitSync.policyManifestRelativePath | default "" | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "policyManifestRelativePath" "" (fromJson (toJson .Values)) | quote }}
       description: Repo-relative path for multi-doc IDMS/ITMS YAML committed alongside hub values (empty skips).
     - name: skip-policy-manifest-sync
       type: string
-      default: {{ .Values.tektonMirror.gitSync.skipPolicyManifestSync | default "false" | quote }}
+      default: {{ dig "tektonMirror" "gitSync" "skipPolicyManifestSync" "false" (fromJson (toJson .Values)) | quote }}
   workspaces:
     - name: imageset
     - name: registry-auth
@@ -82,7 +82,7 @@ spec:
           - name: shared
         steps:
           - name: mirror
-            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
+            image: {{ required "tektonMirror.pipeline.mirrorImage must be set (build custom-container-images/oc-mirror and push)" (dig "tektonMirror" "pipeline" "mirrorImage" "" (fromJson (toJson .Values))) | quote }}
             env:
               - name: PARAM_DEST_REGISTRY
                 value: $(params.dest-registry)
@@ -109,7 +109,7 @@ spec:
               fi
               export DOCKER_CONFIG="${HOME}/.docker"
               IS_DIR="$(workspaces.imageset.path)"
-              KEY="{{ .Values.tektonMirror.imagesetConfigMapKey }}"
+              KEY="{{ dig "tektonMirror" "imagesetConfigMapKey" "ImageSetConfiguration.yaml" (fromJson (toJson .Values)) }}"
               SRC="${IS_DIR}/${KEY}"
               if [[ ! -f "${SRC}" ]]; then
                 SRC="$(find "${IS_DIR}" -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | head -1)"
@@ -140,7 +140,7 @@ spec:
                 exit 1
               fi
           - name: list-artifacts
-            image: {{ .Values.tektonMirror.pipeline.mirrorImage | quote }}
+            image: {{ required "tektonMirror.pipeline.mirrorImage must be set (build custom-container-images/oc-mirror and push)" (dig "tektonMirror" "pipeline" "mirrorImage" "" (fromJson (toJson .Values))) | quote }}
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -202,24 +202,16 @@ spec:
           - name: skip-policy-manifest-sync
         steps:
           - name: merge-values-and-pr
-            image: {{ .Values.tektonMirror.images.alpineTools | quote }}
+            image: {{ required "tektonMirror.pipeline.mirrorImage must be set (must include yq, gh, jq, git; see custom-container-images/oc-mirror)" (dig "tektonMirror" "pipeline" "mirrorImage" "" (fromJson (toJson .Values))) | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonMirror.github.secretName }}
-                    key: {{ .Values.tektonMirror.github.secretKey }}
+                    name: {{ dig "tektonMirror" "github" "secretName" "gitops-github-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonMirror" "github" "secretKey" "GH_TOKEN" (fromJson (toJson .Values)) }}
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
-              apk add --no-cache bash curl jq git ca-certificates tar
-              YQ_VER={{ .Values.tektonMirror.gitSync.yqVersion | quote }}
-              GH_VER={{ .Values.tektonMirror.gitSync.ghVersion | quote }}
-              curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -o /usr/local/bin/yq
-              chmod +x /usr/local/bin/yq
-              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" | tar xz -C /tmp
-              mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /usr/local/bin/gh
-              chmod +x /usr/local/bin/gh
 
               ROOT="$(workspaces.shared.path)"
               MIRROR="${ROOT}/mirror-artifacts"
@@ -234,7 +226,7 @@ spec:
                 : > "${out}.raw"
                 while read -r f; do
                   [ -z "${f}" ] && continue
-                  /usr/local/bin/yq ea -o=json ". | select(.kind == \"${kind}\")" "${f}" 2>/dev/null >> "${out}.raw" || true
+                  yq ea -o=json ". | select(.kind == \"${kind}\")" "${f}" 2>/dev/null >> "${out}.raw" || true
                 done < <(find "${MIRROR}" -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort)
 
                 if [ ! -s "${out}.raw" ]; then
@@ -266,7 +258,7 @@ spec:
                     imageDigestMirrorSets: $idms[0],
                     imageTagMirrorSets: $itms[0]
                   }
-                }' | /usr/local/bin/yq -P > /tmp/fragment.yaml
+                }' | yq -P > /tmp/fragment.yaml
 
               rm -rf "${ROOT}/src"
               git clone --depth 1 --branch "$(params.git-revision)" "$(params.gitops-repo-url)" "${ROOT}/src"
@@ -278,7 +270,7 @@ spec:
               fi
 
               cp "${VALUES_PATH}" /tmp/values-before.yaml
-              /usr/local/bin/yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
+              yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
                 "${VALUES_PATH}" /tmp/fragment.yaml > /tmp/values-after.yaml
               mv /tmp/values-after.yaml "${VALUES_PATH}"
 
@@ -332,4 +324,4 @@ spec:
                 --base "$(params.git-base-branch)" \
                 --head "${BRANCH}" \
                 --title "$(params.pr-title)" \
-                --body "Automated update from Tekton **{{ .Values.tektonMirror.pipeline.name }}** after **oc mirror**. Merges **ztpDisconnected.imageDigestMirrorSets** / **imageTagMirrorSets** into **\`$(params.hub-values-relative-path)\`** for **ztp-disconnected-configuration**, and optionally commits **\`$(params.policy-manifest-relative-path)\`** for ACM Policy bundles on spokes."
+                --body "Automated update from Tekton **{{ dig "tektonMirror" "pipeline" "name" "ocp-registry-mirror" (fromJson (toJson .Values)) }}** after **oc mirror**. Merges **ztpDisconnected.imageDigestMirrorSets** / **imageTagMirrorSets** into **\`$(params.hub-values-relative-path)\`** for **ztp-disconnected-configuration**, and optionally commits **\`$(params.policy-manifest-relative-path)\`** for ACM Policy bundles on spokes."

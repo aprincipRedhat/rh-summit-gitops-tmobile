@@ -4,7 +4,7 @@
 
 Three top-level GitOps areas:
 
-- **`hub-clusters/`** — Hub lifecycle: Day 1 ACM + Vault Secrets Operator, Day 2 app-of-apps, per-application Helm charts, and per-hub `99-environments` values.
+- **`hub-clusters/`** — Hub lifecycle: Day 1 ACM + Vault Secrets Operator, Day 2 app-of-apps, per-application Helm charts, and per-hub `hub-env-values` values.
 - **`spoke-clusters/`** — Per-hub spoke trees: policies, `99-pipeline-values/<cluster>.yaml`, and rendered manifests under `clusters/<cluster>/`.
 - **`cluster-automation/`** — Shared Tekton pipeline charts (`spoke-automation`) and the **`ztp-spoke`** render chart at repo root of this subtree.
 - **`custom-container-images/`** — Containerfiles for custom runner images (e.g. `oc-mirror`).
@@ -17,7 +17,7 @@ Install OpenShift **Pipelines** on the hub via Tekton pipeline Applications (sep
 |------|------|
 | `hub-clusters/day1/acm-day1` | MCE, ACM operator, `MultiClusterHub`, Vault Secrets Operator (OLM; optional). |
 | `hub-clusters/day2/app-of-apps` | Root OpenShift GitOps `Application` + `ApplicationSet` (`spoke-cluster-gitops-apps`). |
-| `hub-clusters/day2/managed-applications` | Child `Application` Helm chart (`values.yaml` selects the `99-environments/.../values.yaml` path). |
+| `hub-clusters/day2/managed-applications` | Child `Application` Helm chart (`values.yaml` selects the `hub-env-values/.../values.yaml` path). |
 | `hub-clusters/day2/applications/operator-installations` | OperatorPolicy chart (OpenShift GitOps, OpenShift Pipelines, etc.). |
 | `hub-clusters/day2/applications/gitops-repos-config` | `VaultStaticSecret` resources for Argo CD repository credentials (Vault). |
 | `hub-clusters/day2/applications/policy-generator-gitops-patch` | ArgoCD repo-server patch for PolicyGenerator. |
@@ -25,7 +25,7 @@ Install OpenShift **Pipelines** on the hub via Tekton pipeline Applications (sep
 | `hub-clusters/day2/applications/acm-spoke-clusters` | `policies` namespace + hub-template RBAC for operator pin ConfigMaps. |
 | `hub-clusters/day2/applications/ztp-disconnected-configuration` | Disconnected hub: `OperatorHub`, mirrored `CatalogSource`, mirror `ConfigMap` for IDMS/ITMS YAML (Assisted Installer / ZTP); hub does not apply IDMS/ITMS CRs from this chart. |
 | `hub-clusters/day2/applications/hub-platform-day2` | Optional hub proxy / trusted CA (values-driven). |
-| `hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml` | Shared values for Day 2 Helm apps on that hub. |
+| `hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml` | Shared values for Day 2 Helm apps on that hub. |
 | `cluster-automation/spoke-automation/*` | ZTP, bulk ZTP, and mirror Tekton pipeline charts. |
 | `cluster-automation/ztp-spoke` | Helm chart rendered by the ZTP pipeline (`ClusterInstance`, etc.). |
 | `custom-container-images/oc-mirror` | Container image build for the mirror pipeline runner. |

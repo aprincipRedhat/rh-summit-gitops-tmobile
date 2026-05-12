@@ -18,7 +18,7 @@ Create **pull secrets** for private mirrors outside this chart — reference the
 
 ## Values (`ztpDisconnected`)
 
-Set under **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**:
+Set under **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**:
 
 - **`enabled`** — master switch.
 - **`operatorHub.enabled`** / **`disableAllDefaultSources`** — cluster **`OperatorHub`**.
@@ -26,7 +26,7 @@ Set under **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**
 - **`catalogSources`** — list of `{ name, namespace?, spec }` (**`spec`** is the **`CatalogSource.spec`** body).
 - **`configMap`** — name/namespace for the mirror-artifacts **`ConfigMap`**.
 
-The **`oc mirror`** Tekton pipeline can merge **`oc mirror`** output into **`99-environments`** **`ztpDisconnected`**; enable **`configMap`** so the **`ConfigMap`** carries **`ImageDigestMirrorSets.yaml`** / **`ImageTagMirrorSets.yaml`** for disconnected installs.
+The **`oc mirror`** Tekton pipeline can merge **`oc mirror`** output into **`hub-env-values`** **`ztpDisconnected`**; enable **`configMap`** so the **`ConfigMap`** carries **`ImageDigestMirrorSets.yaml`** / **`ImageTagMirrorSets.yaml`** for disconnected installs.
 
 ## GitOps
 
@@ -36,7 +36,7 @@ Application: **`app-ztp-disconnected-configuration`** → destination **`openshi
 
 ```bash
 helm template ztp-disc ./hub-clusters/day2/applications/ztp-disconnected-configuration \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
 ```
 
 ## Related

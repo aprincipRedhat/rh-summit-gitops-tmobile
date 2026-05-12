@@ -12,11 +12,11 @@ Installs ACM Day 1 resources on the hub:
 
 ## GitOps (recommended after OpenShift GitOps is running)
 
-To manage the same resources from Git and your per-hub **`99-environments`** file (reduce drift):
+To manage the same resources from Git and your per-hub **`hub-env-values`** file (reduce drift):
 
 1. Ensure **`openshift-gitops`** is installed (e.g. OperatorPolicy from **`operator-installations`** or day-0) and the root **`Application`** (**`root-day2-applications`**) syncs **`managed-applications`**.
 2. In **`hub-clusters/day2/managed-applications/values.yaml`**, set **`acmDay1.enabled: true`** for that repo clone (with **`hub.*`** identity aligned to this hub).
-3. Put **`mce`**, **`acm`**, **`multiClusterHub`**, **`vaultSecretsOperator`**, and **`vaultBootstrap`** overrides in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`** (see dev/prod examples in this repo). Argo **`app-acm-day1`** points Helm at this chart and merges that file.
+3. Put **`mce`**, **`acm`**, **`multiClusterHub`**, **`vaultSecretsOperator`**, and **`vaultBootstrap`** overrides in **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`** (see dev/prod examples in this repo). Argo **`app-acm-day1`** points Helm at this chart and merges that file.
 
 Avoid applying the same subscriptions twice: either use **manual `helm template | oc apply` once** then **enable Argo** so it adopts the live objects, or **only** use Argo after a fresh hub where ACM was never applied manually.
 

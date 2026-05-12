@@ -25,7 +25,7 @@ Set **`vaultHubConfiguration.vaultAuthGlobal.enabled: false`** to render the pre
 
 ## Hub values
 
-Configured via **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`** under **`vaultHubConfiguration`** (see [`values.yaml`](values.yaml)).
+Configured via **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`** under **`vaultHubConfiguration`** (see [`values.yaml`](values.yaml)).
 
 Enable the Application from **`hub-clusters/day2/managed-applications`** by setting **`vaultHubConfiguration.enabled: true`** in that hub environment file.
 

@@ -1,8 +1,10 @@
-{{- if .Values.tenantMirrorTriggers.enabled }}
+{{- if .Values.tektonMirror }}
+{{- $tm := .Values.tenantMirrorTriggers | default dict -}}
+{{- $elsa := ($tm.serviceAccount | default dict).name | default "el-mirror-tenant" -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ printf "%s-el-role" .Values.tenantMirrorTriggers.serviceAccount.name }}
+  name: {{ printf "%s-el-role" $elsa }}
   namespace: openshift-pipelines
 rules:
   - apiGroups: ["tekton.dev"]
@@ -12,14 +14,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ printf "%s-el-binding" .Values.tenantMirrorTriggers.serviceAccount.name }}
+  name: {{ printf "%s-el-binding" $elsa }}
   namespace: openshift-pipelines
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ printf "%s-el-role" .Values.tenantMirrorTriggers.serviceAccount.name }}
+  name: {{ printf "%s-el-role" $elsa }}
 subjects:
   - kind: ServiceAccount
-    name: {{ .Values.tenantMirrorTriggers.serviceAccount.name }}
+    name: {{ $elsa }}
     namespace: openshift-pipelines
 {{- end }}

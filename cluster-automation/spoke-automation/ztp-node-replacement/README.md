@@ -16,7 +16,7 @@ Tekton **Pipeline** for bare-metal **node replacement**: suppress the marked nod
 | Location | Key | Purpose |
 |----------|-----|---------|
 | **`hub-clusters/day2/managed-applications/values.yaml`** | **`tektonNodeReplacement.enabled: true`** | Renders Argo **`Application`** **`app-tekton-node-replacement`**. |
-| **`hub-clusters/day2/99-environments/<hub>/values.yaml`** | **`tektonNodeReplacement.enabled: true`** | Renders the **`Pipeline`** CR from this chart. |
+| **`hub-clusters/day2/hub-env-values/<hub>/values.yaml`** | **`tektonNodeReplacement.enabled: true`** | Renders the **`Pipeline`** CR from this chart. |
 
 Images, GitHub Secret names, Ansible ConfigMap, and timeouts align with **`tektonNodeReplacement.*`** in that hub values file (defaults in this chart’s **`values.yaml`**).
 
@@ -54,7 +54,7 @@ Images, GitHub Secret names, Ansible ConfigMap, and timeouts align with **`tekto
 ```bash
 helm template nr ./cluster-automation/spoke-automation/ztp-node-replacement \
   --set tektonNodeReplacement.enabled=true \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
 ```
 
 ## Related

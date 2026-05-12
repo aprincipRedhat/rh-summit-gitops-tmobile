@@ -1,4 +1,4 @@
-{{- if .Values.tenantMirrorTriggers.enabled }}
+{{- if .Values.tektonMirror }}
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:

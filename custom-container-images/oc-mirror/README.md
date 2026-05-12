@@ -8,7 +8,7 @@ From the repository root:
 
 ```bash
 cd custom-container-images/oc-mirror
-podman build -t quay.io/example/oc-mirror-runner:latest .
+podman build -t registry.ocp.example/oc-mirror-runner:latest .
 ```
 
-Push to your registry and set **`tektonMirror.pipeline.mirrorImage`** in **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**.
+Push to your registry and set **`tektonMirror.pipeline.mirrorImage`** in **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**.

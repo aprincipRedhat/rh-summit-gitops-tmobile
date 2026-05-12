@@ -1,7 +1,9 @@
+{{- $bulkSA := (.Values.tektonBulkZtp | default dict).serviceAccount | default dict -}}
+{{- $san := $bulkSA.name | default "pipeline-bulk-ztp-gitops" -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ printf "%s-tekton" .Values.tektonBulkZtp.serviceAccount.name }}
+  name: {{ printf "%s-tekton" $san }}
   namespace: openshift-pipelines
 rules:
   - apiGroups: ["tekton.dev"]

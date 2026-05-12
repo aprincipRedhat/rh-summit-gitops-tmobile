@@ -7,4 +7,4 @@ metadata:
 data:
   chart: hub-platform-day2
   note: >-
-    Functional manifests render when hubPlatform.proxy, trustedCA, apiServer, or ingressController features are enabled in 99-environments values.
+    Functional manifests render when hubPlatform.proxy, trustedCA, apiServer, or ingressController features are enabled in hub-env-values values.

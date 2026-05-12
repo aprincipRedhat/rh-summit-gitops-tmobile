@@ -1,4 +1,4 @@
-# Override via hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml → vaultHubConfiguration
+# Override via hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml → vaultHubConfiguration
 
 vaultHubConfiguration:
   enabled: true

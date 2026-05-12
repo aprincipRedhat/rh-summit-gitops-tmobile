@@ -10,7 +10,7 @@ Renders **`VaultStaticSecret`** resources (HashiCorp Vault Secrets Operator) so 
 
 ## Values (`gitopsReposConfig`)
 
-Set under **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**:
+Set under **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**:
 
 - **`enabled`** — master switch.
 - **`defaultNamespace`** — namespace for resources that omit **`namespace`** per entry (default **`openshift-gitops`**).
@@ -29,5 +29,5 @@ Rendered by **`managed-applications`** → **`app-gitops-repos-config`**, destin
 
 ```bash
 helm template gitops-repos-config ./hub-clusters/day2/applications/gitops-repos-config \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
 ```

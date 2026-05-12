@@ -11,7 +11,7 @@ Tekton **Triggers** resources (**EventListener**, **TriggerBinding**, **TriggerT
 
 ## Hub values (`tenantMirrorTriggers` + `tektonMirror`)
 
-Rendered from **`hub-clusters/day2/99-environments/<env>/<site>/<hub>/values.yaml`**:
+Rendered from **`hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml`**:
 
 - **`tenantMirrorTriggers.enabled`** — must be **true** for manifests (also enable the **`app-tekton-mirror-tenant-triggers`** Application via **`hub-clusters/day2/managed-applications`** **`tenantMirrorTriggers.enabled`**).
 - **`tektonMirror.gitSync.*`** — defaults for Git PR promotion from **`mirror-pipeline`** (repo slug, hub values path, policy manifest path).
@@ -45,5 +45,5 @@ Application template: [`../../../hub-clusters/day2/managed-applications/template
 
 ```bash
 helm template tekton-mirror-tenant-triggers ./cluster-automation/spoke-automation/mirror-tenant-triggers \
-  -f hub-clusters/day2/99-environments/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
+  -f hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml | oc apply -f -
 ```

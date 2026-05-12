@@ -22,7 +22,7 @@ def main() -> None:
     try:
         import yaml  # type: ignore
     except ImportError as exc:
-        sys.stderr.write("PyYAML is required (apk add py3-yaml / pip install pyyaml)\n")
+        sys.stderr.write("PyYAML is required (install python3-pyyaml in the Tekton image)\n")
         raise SystemExit(1) from exc
 
     if len(sys.argv) != 4:

@@ -2,16 +2,16 @@
 
 Helm chart **`managed-applications`** renders child **`Application`** resources consumed by the root Application **`root-day2-applications`** (`hub-clusters/day2/app-of-apps` → `rootApp.sourcePath`).
 
-## Hub identity and `99-environments`
+## Hub identity and `hub-env-values`
 
 Edit **`values.yaml`** next to `Chart.yaml` (same directory — checked into Git):
 
-- **`hub.environment`**, **`hub.site`**, **`hub.clusterName`** — select **`hub-clusters/day2/99-environments/<environment>/<site>/<clusterName>/values.yaml`** for every Day 2 Helm child Application (`helm.valueFiles`).
+- **`hub.environment`**, **`hub.site`**, **`hub.clusterName`** — select **`hub-clusters/day2/hub-env-values/<environment>/<site>/<clusterName>/values.yaml`** for every Day 2 Helm child Application (`helm.valueFiles`).
 - **`repoURL`** / **`targetRevision`** — should match **`hub-clusters/day2/app-of-apps/values.yaml`** used when bootstrapping the root Application.
 
 The root Application syncs this chart with **`helm.valueFiles: [values.yaml]`** (see `rootApp.helmValueFiles` in app-of-apps).
 
-**ACM Day1 (`app-acm-day1`)** — Set **`acmDay1.enabled: true`** in **`managed-applications/values.yaml`** after OpenShift GitOps and the root Application are running. Subscriptions, **`MultiClusterHub`**, Vault Secrets Operator, and the optional vault bootstrap **`Secret`** are driven from **`hub-clusters/day1/acm-day1`** with **`helm.valueFiles`** pointing at your hub **`99-environments/.../values.yaml`** — use the same **`mce`**, **`acm`**, **`multiClusterHub`**, **`vaultSecretsOperator`**, and **`vaultBootstrap`** keys as in this chart’s **`values.yaml`**. Do not double-apply the same Day1 manifests via **`helm template | oc apply`** while Argo manages them.
+**ACM Day1 (`app-acm-day1`)** — Set **`acmDay1.enabled: true`** in **`managed-applications/values.yaml`** after OpenShift GitOps and the root Application are running. Subscriptions, **`MultiClusterHub`**, Vault Secrets Operator, and the optional vault bootstrap **`Secret`** are driven from **`hub-clusters/day1/acm-day1`** with **`helm.valueFiles`** pointing at your hub **`hub-env-values/.../values.yaml`** — use the same **`mce`**, **`acm`**, **`multiClusterHub`**, **`vaultSecretsOperator`**, and **`vaultBootstrap`** keys as in this chart’s **`values.yaml`**. Do not double-apply the same Day1 manifests via **`helm template | oc apply`** while Argo manages them.
 
 **Node replacement Application (legacy)** — Prefer the integrated branch in **`ztp-pipeline`** (`detect-node-replacement` → **`replacement-flow=full`**). To keep the separate **`app-tekton-node-replacement`** chart, set **`tektonNodeReplacement.enabled: true`** in **`managed-applications/values.yaml`** so the Application and its **`Pipeline`** CR render.
 
@@ -61,4 +61,4 @@ Implemented in-repo: **`oc-mirror`** promotes IDMS/ITMS into hub **`ztpDisconnec
 helm template mgd ./hub-clusters/day2/managed-applications -f hub-clusters/day2/managed-applications/values.yaml
 ```
 
-See also [../99-environments/README.md](../99-environments/README.md) for what belongs in the per-hub `values.yaml` file.
+See also [../hub-env-values/README.md](../hub-env-values/README.md) for what belongs in the per-hub `values.yaml` file.

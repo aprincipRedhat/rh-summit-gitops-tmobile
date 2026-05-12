@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ .Values.tektonZtp.pipeline.name }}
+  name: {{ dig "tektonZtp" "pipeline" "name" "ztp-cluster-render-pr" (fromJson (toJson .Values)) }}
   namespace: openshift-pipelines
 spec:
   description: >-
@@ -55,7 +55,7 @@ spec:
       description: When false, pause until ConfigMap data.approved=true (see README).
     - name: manual-approval-timeout-seconds
       type: string
-      default: {{ .Values.tektonZtp.manualApproval.timeoutSeconds | default 7200 | quote }}
+      default: {{ dig "tektonZtp" "manualApproval" "timeoutSeconds" 7200 (fromJson (toJson .Values)) | quote }}
     - name: run-post-deploy-validation
       type: string
       default: "false"
@@ -74,7 +74,7 @@ spec:
       description: Namespace of kubeconfig Secret on hub; defaults to cluster.namespace from pipeline values if empty.
     - name: cluster-validation-timeout-seconds
       type: string
-      default: {{ .Values.tektonZtp.clusterValidation.timeoutSeconds | default 3600 | quote }}
+      default: {{ dig "tektonZtp" "clusterValidation" "timeoutSeconds" 3600 (fromJson (toJson .Values)) | quote }}
     - name: kube-burner-config-relative-repo-path
       type: string
       default: cluster-automation/spoke-automation/ztp-pipeline/files/kube-burner/profile.yml
@@ -159,14 +159,14 @@ spec:
           - name: manifest-output-dir
         steps:
           - name: clone-and-resolve-values
-            image: {{ .Values.tektonZtp.images.git | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
               ROOT="$(workspaces.shared.path)"
               cd "$ROOT"
               rm -rf src
-              git clone --depth {{ get (.Values.tektonZtp.git | default dict) "cloneDepth" | default 50 }} --branch "$(params.git-revision)" "$(params.gitops-repo-url)" src
+              git clone --depth {{ dig "tektonZtp" "git" "cloneDepth" 50 (fromJson (toJson .Values)) }} --branch "$(params.git-revision)" "$(params.gitops-repo-url)" src
               cd src
               CLUSTER="$(params.cluster-name)"
               TMP=/tmp/pv-matches.$$
@@ -223,11 +223,10 @@ spec:
           - name: manifest-output-dir
         steps:
           - name: compute-flow
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache python3 py3-yaml
               ROOT="$(workspaces.shared.path)"
               set -a
               # shellcheck source=/dev/null
@@ -262,7 +261,7 @@ spec:
           - name: run-sdn-prechecks
         steps:
           - name: http-health-check
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -282,7 +281,6 @@ spec:
                 exit 1
               fi
               echo "SDN health GET ${URL}"
-              apk add --no-cache curl ca-certificates
               curl -fsS --max-time 30 "$URL" >/dev/null
               echo "SDN precheck OK"
 
@@ -318,14 +316,14 @@ spec:
         volumes:
           - name: ansible-preflight-bundle
             configMap:
-              name: {{ .Values.tektonZtp.ansible.preflightConfigMapName | quote }}
+              name: {{ dig "tektonZtp" "ansible" "preflightConfigMapName" "ztp-ansible-preflight" (fromJson (toJson .Values)) | quote }}
         steps:
           - name: ansible-preflight-with-values
-            image: {{ .Values.tektonZtp.images.ansible | quote }}
-{{- if ((.Values.tektonZtp.vault | default dict).secretName | default "") }}
+            image: {{ include "tekton.ansibleEEImage" . | quote }}
+{{- if (dig "tektonZtp" "vault" "secretName" "" (fromJson (toJson .Values))) }}
             envFrom:
               - secretRef:
-                  name: {{ .Values.tektonZtp.vault.secretName | quote }}
+                  name: {{ dig "tektonZtp" "vault" "secretName" "" (fromJson (toJson .Values)) | quote }}
 {{- end }}
             volumeMounts:
               - name: ansible-preflight-bundle
@@ -396,7 +394,7 @@ spec:
           - name: run-network-connectivity-test
         steps:
           - name: iso-or-extensibility-stub
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -435,7 +433,7 @@ spec:
           - name: cluster-name
         steps:
           - name: wait-for-approval-configmap
-            image: {{ .Values.tektonZtp.images.cli | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/bash
               set -euo pipefail
@@ -488,7 +486,7 @@ spec:
           - name: manifest-output-dir
         steps:
           - name: merge-pipeline-values
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -498,7 +496,6 @@ spec:
               DISC="${ROOT}/discovered-nodes.yaml"
               SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py"
               rm -f "${MERGED}"
-              apk add --no-cache python3 py3-yaml
               if [ -f "$DISC" ]; then
                 python3 "$SCRIPT" "$BASE" "$DISC" "$MERGED"
               else
@@ -508,7 +505,7 @@ spec:
               echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
               echo "Effective values file: $MERGED"
           - name: validate-pipeline-values
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -525,13 +522,12 @@ spec:
                 echo "cluster.name in pipeline values ($VAL) must match PipelineRun param cluster-name ($EXPECT)" >&2
                 exit 1
               fi
-              apk add --no-cache python3 py3-yaml
               INV="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/node_inventory.py"
               if ! python3 "$INV" check-render "$VALUES_FILE"; then
                 exit 1
               fi
           - name: helm-template-and-lint
-            image: {{ .Values.tektonZtp.images.helm | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
@@ -588,17 +584,16 @@ spec:
           - name: pr-title-prefix-modify
         steps:
           - name: push-and-pr
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonZtp.github.secretName }}
-                    key: {{ .Values.tektonZtp.github.secretKey }}
+                    name: {{ dig "tektonZtp" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonZtp" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache git github-cli bash
               ROOT="$(workspaces.shared.path)"
               cd "${ROOT}/src"
               git config user.name "$(params.git-user-name)"
@@ -676,13 +671,13 @@ spec:
           - name: skip-wait-for-merge
         steps:
           - name: poll-until-merged
-            image: {{ .Values.tektonZtp.images.alpineTools | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             env:
               - name: GH_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Values.tektonZtp.github.secretName }}
-                    key: {{ .Values.tektonZtp.github.secretKey }}
+                    name: {{ dig "tektonZtp" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonZtp" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
             script: |
               #!/bin/sh
               set -eu
@@ -690,11 +685,10 @@ spec:
                 echo "skip-wait-for-merge=true — not waiting on PR"
                 exit 0
               fi
-              apk add --no-cache github-cli bash
               ROOT="$(workspaces.shared.path)"
               export GH_TOKEN
-              POLL={{ .Values.tektonZtp.waitForMerge.pollIntervalSeconds | default 30 }}
-              MAX_ITER=$(( {{ .Values.tektonZtp.waitForMerge.timeoutSeconds | default 7200 }} / POLL ))
+              POLL={{ dig "tektonZtp" "waitForMerge" "pollIntervalSeconds" 30 (fromJson (toJson .Values)) }}
+              MAX_ITER=$(( {{ dig "tektonZtp" "waitForMerge" "timeoutSeconds" 7200 (fromJson (toJson .Values)) }} / POLL ))
               PR_NUM=""
               if [ -f "${ROOT}/ztp-pr-number.txt" ]; then
                 PR_NUM=$(cat "${ROOT}/ztp-pr-number.txt")
@@ -743,7 +737,7 @@ spec:
           - name: skip-deploy-watch
         steps:
           - name: watch-provisioning
-            image: {{ .Values.tektonZtp.images.cli | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/bash
               set -euo pipefail
@@ -765,9 +759,9 @@ spec:
                 exit 1
               fi
               echo "Watching ClusterInstance/${CLUSTER}, AgentClusterInstall, BareMetalHosts in namespace ${NS}"
-              POLL={{ .Values.tektonZtp.deployWatch.pollIntervalSeconds | default 30 }}
+              POLL={{ dig "tektonZtp" "deployWatch" "pollIntervalSeconds" 30 (fromJson (toJson .Values)) }}
               START_TS=$(date +%s)
-              MAX_SEC={{ .Values.tektonZtp.deployWatch.timeoutSeconds | default 14400 }}
+              MAX_SEC={{ dig "tektonZtp" "deployWatch" "timeoutSeconds" 14400 (fromJson (toJson .Values)) }}
               while true; do
                 NOW=$(date +%s)
                 if [ $((NOW - START_TS)) -ge "$MAX_SEC" ]; then
@@ -836,7 +830,7 @@ spec:
           - name: kube-burner-config-relative-repo-path
         steps:
           - name: validate-or-skip
-            image: {{ .Values.tektonZtp.images.cli | quote }}
+            image: {{ include "tekton.oseToolsImage" . | quote }}
             script: |
               #!/bin/bash
               set -euo pipefail
@@ -903,7 +897,7 @@ spec:
                 echo "Kube-burner runs in next step; kubeconfig at ${ROOT}/spoke.kubeconfig"
               fi
           - name: kube-burner
-            image: {{ .Values.tektonZtp.images.kubeBurner | default "quay.io/cloud-bulldozer/kube-burner:v1.7.10" | quote }}
+            image: {{ dig "tektonZtp" "images" "kubeBurner" "" (fromJson (toJson .Values)) | default (include "tekton.oseToolsImage" .) | quote }}
             script: |
               #!/bin/sh
               set -eu

@@ -1,23 +1,2 @@
-tenantMirrorTriggers:
-  enabled: true
-  eventListener:
-    name: mirror-tenant-listener
-  serviceAccount:
-    name: el-mirror-tenant
-  pipelineRef:
-    name: ocp-registry-mirror
-    namespace: openshift-pipelines
-  mirrorPipelineSA:
-    name: pipeline-oc-mirror
-  workspaces:
-    sharedStorage: 5Gi
-  defaults:
-    skipGitSync: "false"
-    extraFlags: ""
-    gitRevision: main
-    gitBaseBranch: main
-  binding:
-    allowedDestRegistryPattern: ".+"
-  route:
-    enabled: false
-    host: ""
+# EventListener / TriggerTemplate wiring defaults are in templates. Required: hub hub-env-values includes tektonMirror for git targets; enable app via managed-applications tenantMirrorTriggers.
+{}
