@@ -17,6 +17,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-pipelines
+  ignoreDifferences:
+    - group: triggers.tekton.dev
+      kind: EventListener
+      jsonPointers:
+        - /spec/resources
   syncPolicy:
     automated:
       prune: true
