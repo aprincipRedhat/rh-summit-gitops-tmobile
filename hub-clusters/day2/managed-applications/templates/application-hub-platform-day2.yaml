@@ -16,6 +16,12 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-config
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: ArgoCD
+      jqPathExpressions:
+        - .spec.repo.resources
+        - .spec.repo.initContainers[].resources
   syncPolicy:
     automated:
       prune: true
