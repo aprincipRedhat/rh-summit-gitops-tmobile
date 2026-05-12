@@ -16,7 +16,7 @@ spec:
     policy: |
       g, system:cluster-admins, role:admin
     scopes: '[groups]'
-  kustomizeBuildOptions: --enable-alpha-plugins
+  kustomizeBuildOptions: --enable-alpha-plugins --load-restrictor LoadRestrictionsNone
   repo:
     env:
       - name: KUSTOMIZE_PLUGIN_HOME
