@@ -22,6 +22,7 @@ spec:
       kind: EventListener
       jsonPointers:
         - /spec/resources
+        - /spec/namespaceSelector
   syncPolicy:
     automated:
       prune: true
