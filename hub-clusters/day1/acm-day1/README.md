@@ -22,16 +22,47 @@ Avoid applying the same subscriptions twice: either use **manual `helm template 
 
 ## Inputs
 
-Use `values.yaml` to set channels and install behavior. Disable VSO with **`vaultSecretsOperator.enabled: false`** if you install it elsewhere.
+Confirm channels before applying. For OCP 4.16–4.20, use:
 
-Confirm the subscription **`channel`** matches your cluster’s marketplace (`oc get packagemanifest vault-secrets-operator -n openshift-marketplace`).
+| Component | Channel | Command to verify |
+|-----------|---------|-------------------|
+| ACM | `release-2.16` | `oc get packagemanifest advanced-cluster-management -n openshift-marketplace -o jsonpath='{.status.channels[*].name}'` |
+| MCE | `stable-2.11` | `oc get packagemanifest multicluster-engine -n openshift-marketplace -o jsonpath='{.status.channels[*].name}'` |
+| Vault Secrets Operator | `stable` | `oc get packagemanifest vault-secrets-operator -n openshift-marketplace -o jsonpath='{.status.defaultChannel}'` |
 
-## Render and apply
+Disable VSO with **`vaultSecretsOperator.enabled: false`** if you install it elsewhere.
 
-From the repository root:
+## Render and apply — two-phase (required on a fresh hub)
+
+The `MultiClusterHub` CR requires the ACM operator CRD to exist before it can be applied. Apply in two steps from the repository root:
+
+**Phase 1 — namespaces, OperatorGroups, Subscriptions, VSO Secret:**
 
 ```bash
-helm template acm-day1 ./hub-clusters/day1/acm-day1 -f hub-clusters/day1/acm-day1/values.yaml | oc apply -f -
+helm template acm-day1 ./hub-clusters/day1/acm-day1 -f hub-clusters/day1/acm-day1/values.yaml \
+  | oc apply -f - 2>&1 || true
+```
+
+The `MultiClusterHub` will fail with `no matches for kind "MultiClusterHub"` on a fresh cluster — that is expected. All other resources (namespaces, OperatorGroups, Subscriptions, Secret) apply successfully.
+
+**Phase 2 — wait for ACM operator, then apply MCH:**
+
+```bash
+# Wait for MCE CSV (may take 3-5 minutes)
+oc wait csv \
+  -l operators.coreos.com/multicluster-engine.multicluster-engine="" \
+  -n multicluster-engine \
+  --for=jsonpath='{.status.phase}'=Succeeded --timeout=600s
+
+# Wait for ACM CSV
+oc wait csv \
+  -l operators.coreos.com/advanced-cluster-management.open-cluster-management="" \
+  -n open-cluster-management \
+  --for=jsonpath='{.status.phase}'=Succeeded --timeout=600s
+
+# Re-apply — MultiClusterHub will succeed this time
+helm template acm-day1 ./hub-clusters/day1/acm-day1 -f hub-clusters/day1/acm-day1/values.yaml \
+  | oc apply -f -
 ```
 
 ## Verify
@@ -41,6 +72,13 @@ oc get csv -n multicluster-engine
 oc get csv -n open-cluster-management
 oc get mch -n open-cluster-management
 oc get csv -n vault-secrets-operator
+```
+
+Wait for `MultiClusterHub` to reach `Running` phase (can take 5–15 minutes):
+
+```bash
+oc wait mch multiclusterhub -n open-cluster-management \
+  --for=jsonpath='{.status.phase}'=Running --timeout=900s
 ```
 
 ## Next

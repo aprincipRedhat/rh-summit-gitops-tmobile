@@ -2,7 +2,7 @@
 # objects are always created in openshift-gitops and use AppProject "default" with destination
 # server https://kubernetes.default.svc (in-cluster).
 repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
-targetRevision: main
+targetRevision: working-branch
 
 # ApplicationSet: git directory generator — one Application per subdirectory under this glob.
 # Matches spoke-clusters/<env>/<site>/<hub-cluster-name>/clusters/<spoke-cluster-name>/

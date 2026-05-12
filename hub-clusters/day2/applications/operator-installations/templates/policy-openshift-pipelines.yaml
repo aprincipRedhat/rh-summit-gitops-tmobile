@@ -9,7 +9,7 @@ spec:
   complianceType: musthave
   upgradeApproval: "Automatic"
   subscription:
-    name: "openshift-pipelines-operator"
+    name: "openshift-pipelines-operator-rh"
     namespace: "openshift-operators"
     channel: {{ .Values.operators.openshiftPipelines.channel | quote }}
     source: "redhat-operators"

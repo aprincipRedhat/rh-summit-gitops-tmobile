@@ -2,7 +2,7 @@
 # hub-clusters/day2/hub-env-values/<environment>/<site>/<clusterName>/values.yaml and ACM policies path.
 # Keep repoURL/targetRevision aligned with hub-clusters/day2/app-of-apps/values.yaml when bootstrapping.
 repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
-targetRevision: main
+targetRevision: working-branch
 
 hub:
   environment: dev

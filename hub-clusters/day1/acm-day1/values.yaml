@@ -4,7 +4,7 @@ mce:
     name: default
   subscription:
     name: multicluster-engine
-    channel: stable-2.5
+    channel: stable-2.11
     installPlanApproval: Automatic
     source: redhat-operators
     sourceNamespace: openshift-marketplace
@@ -15,7 +15,7 @@ acm:
     name: default
   subscription:
     name: advanced-cluster-management
-    channel: release-2.15
+    channel: release-2.16
     installPlanApproval: Automatic
     source: redhat-operators
     sourceNamespace: openshift-marketplace
