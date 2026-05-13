@@ -125,19 +125,25 @@ spec:
                 docker://*) DEST="${REG}" ;;
                 *) DEST="docker://${REG}" ;;
               esac
+              # oc-mirror v2 writes IDMS/ITMS to <workspace>/working-dir/cluster-resources/
               OUT="$(workspaces.shared.path)/mirror-artifacts"
               mkdir -p "${OUT}"
-              cd "${OUT}"
               set -x
-              oc version --client
+              oc-mirror version 2>/dev/null || oc mirror version 2>/dev/null || true
               CFG=/tmp/mirror-work/imageset.yaml
-              if oc mirror --help >/dev/null 2>&1; then
-                oc mirror ${PARAM_EXTRA_FLAGS} --config "${CFG}" "${DEST}"
-              elif command -v oc-mirror >/dev/null 2>&1; then
-                oc-mirror ${PARAM_EXTRA_FLAGS} --config "${CFG}" "${DEST}"
+              # oc-mirror v2: use --workspace to control output location; --skip-tls-verify for internal registry
+              if command -v oc-mirror >/dev/null 2>&1; then
+                oc-mirror ${PARAM_EXTRA_FLAGS} -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --skip-tls-verify 2>&1 | tee "${OUT}/oc-mirror.log" || true
+              elif oc mirror --help >/dev/null 2>&1; then
+                oc mirror ${PARAM_EXTRA_FLAGS} -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --skip-tls-verify 2>&1 | tee "${OUT}/oc-mirror.log" || true
               else
-                echo "Neither 'oc mirror' plugin nor oc-mirror binary found in PATH" >&2
+                echo "Neither oc-mirror binary nor 'oc mirror' plugin found in PATH" >&2
                 exit 1
+              fi
+              # oc-mirror v2 places cluster resources under working-dir/cluster-resources; expose at top level for promote step
+              CLUSTER_RES="${OUT}/working-dir/cluster-resources"
+              if [[ -d "${CLUSTER_RES}" ]]; then
+                cp "${CLUSTER_RES}"/*.yaml "${OUT}/" 2>/dev/null || true
               fi
           - name: list-artifacts
             image: {{ required "tektonMirror.pipeline.mirrorImage must be set (build custom-container-images/oc-mirror and push)" (dig "tektonMirror" "pipeline" "mirrorImage" "" (fromJson (toJson .Values))) | quote }}

@@ -38,26 +38,22 @@ tektonBulkZtp:
 
 tektonMirror:
   pipeline:
-    # Replace with your built image from custom-container-images/oc-mirror (must include oc-mirror/oc mirror, yq, gh, jq, git).
-    mirrorImage: registry.ocp.example/oc-mirror-runner:latest
+    # Built from custom-container-images/oc-mirror via OpenShift BuildConfig; pushed to internal registry.
+    mirrorImage: image-registry.openshift-image-registry.svc:5000/openshift-pipelines/oc-mirror-runner:latest
+  github:
+    secretName: github-tekton-token
+    secretKey: GH_TOKEN
+  # oc-mirror v2 (v2alpha1) — mirrors a single small image for testing; replace with full OCP release config for production.
   imageSetConfiguration: |
     kind: ImageSetConfiguration
-    apiVersion: mirror.openshift.io/v1alpha2
-    storageConfig:
-      registry:
-        imageURL: placeholder.example/oc-mirror-metadata
-        skipTLS: true
+    apiVersion: mirror.openshift.io/v2alpha1
     mirror:
-      platform:
-        architectures:
-          - amd64
-        channels:
-          - name: stable-4.16
-            type: ocp
-            minVersion: 4.16.0
-            maxVersion: 4.16.0
+      additionalImages:
+        - name: registry.redhat.io/ubi9/ubi-minimal:latest
   gitSync:
     gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
     githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+    gitRevision: working-branch
+    gitBaseBranch: working-branch
     hubValuesRelativePath: hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
     policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml

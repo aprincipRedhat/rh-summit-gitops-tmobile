@@ -1,16 +1,17 @@
-# oc mirror + git promote helpers for OpenShift Pipelines (build and set tektonMirror.pipeline.mirrorImage).
-# Build: podman build --build-arg OCP_CLIENT_VERSION=4.16.3 -t your-registry/oc-mirror-runner:latest .
+# oc mirror v2 + git promote helpers for OpenShift Pipelines.
+# Build: podman build --build-arg OCP_VERSION=4.20.21 -t your-registry/oc-mirror-runner:latest .
 
-FROM registry.redhat.io/openshift4/ose-tools-rhel9:v4.16
+FROM registry.redhat.io/openshift4/ose-tools-rhel9:v4.20
 
-ARG OCP_CLIENT_VERSION=4.16.3
+ARG OCP_VERSION=4.20.21
 ARG TARGETARCH=amd64
 
 USER 0
 
 RUN microdnf install -y jq git && microdnf clean all
 
-RUN curl -sL "https://mirror.openshift.com/pub/openshift-v4/${TARGETARCH}/clients/ocp/${OCP_CLIENT_VERSION}/oc-mirror.tar.gz" \
+# oc-mirror v2 (GA in 4.18+); standalone binary used in Tekton pods
+RUN curl -sL "https://mirror.openshift.com/pub/openshift-v4/${TARGETARCH}/clients/ocp/${OCP_VERSION}/oc-mirror.tar.gz" \
     | tar xz -C /usr/local/bin \
     && chmod +x /usr/local/bin/oc-mirror
 
