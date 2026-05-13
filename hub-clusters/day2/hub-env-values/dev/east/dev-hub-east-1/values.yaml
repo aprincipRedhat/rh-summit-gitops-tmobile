@@ -11,14 +11,12 @@ operators:
     startingCSV: openshift-pipelines-operator-rh.v1.22.0
     approvedCSVs:
       - openshift-pipelines-operator-rh.v1.22.0
-
 # Vault bootstrap Secret (ACM Day1 chart) — replace before production
 vaultBootstrap:
   stringData:
     VAULT_ADDR: "https://vault.example.com:8200"
     VAULT_TOKEN: "REPLACE_ME"
     secretId: "REPLACE_ME"
-
 tektonZtp:
   # images.kubeBurner: set once custom-container-images/kube-burner-runner is built & pushed.
   # Falls back to ose-tools-rhel9; run-kube-burner-tests step exits 0 without executing.
@@ -31,11 +29,9 @@ tektonZtp:
     example:
       clusterName: dev-east-us-1
       manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
-
 tektonBulkZtp:
   childDefaults:
     manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
-
 tektonMirror:
   pipeline:
     # Built from custom-container-images/oc-mirror via OpenShift BuildConfig; pushed to internal registry.
@@ -57,3 +53,19 @@ tektonMirror:
     gitBaseBranch: working-branch
     hubValuesRelativePath: hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
     policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml
+ztpDisconnected:
+  enabled: true
+  imageDigestMirrorSets: []
+  imageTagMirrorSets:
+    - name: itms-generic-0
+      spec:
+        imageTagMirrors:
+          - mirrors:
+              - image-registry.openshift-image-registry.svc:5000/ubi9
+            source: registry.redhat.io/ubi9
+    - name: itms-generic-0
+      spec:
+        imageTagMirrors:
+          - mirrors:
+              - image-registry.openshift-image-registry.svc:5000/ubi9
+            source: registry.redhat.io/ubi9
