@@ -1,5 +1,12 @@
 ---
-- name: Reset MAC accumulator for this host
+# Called per node from main.yml with:
+#   _hostname      - node hostname string
+#   _node_role     - "master" or "worker"
+#   _node_index    - zero-based index across all nodes (masters first)
+#   _nic_map       - {logicalName, redfishMemberMatch} for this role
+#   _machine_cidr  - e.g. "192.168.20.0/24"
+
+- name: Reset per-host MAC accumulator
   ansible.builtin.set_fact:
     _mac_address: ""
 
@@ -30,21 +37,21 @@
 
 - name: Require BMC credentials from Vault
   ansible.builtin.fail:
-    msg: Vault secret at {{ _vault_secret_rel_path }} must include username (or user) and password.
+    msg: "Vault secret at {{ _vault_secret_rel_path }} must include username (or user) and password."
   when: _bmc_user | length == 0 or _bmc_pass | length == 0
 
-- name: Derive Redfish host and path
+- name: Derive Redfish base host and Systems path from bmcAddress
   ansible.builtin.set_fact:
-    _host_part: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://([^/]+).*', '\\1') }}"
-    _path_part: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://[^/]+', '') }}"
+    _bmc_host: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://([^/]+).*', '\\1') }}"
+    _bmc_path: "{{ _bmc_map[_hostname] | regex_replace('^[^:]+://[^/]+', '') }}"
 
 - name: Build EthernetInterfaces collection URL
   ansible.builtin.set_fact:
-    _eth_collection_url: "https://{{ _host_part }}{{ _path_part }}/EthernetInterfaces"
+    _eth_url: "https://{{ _bmc_host }}{{ _bmc_path }}/EthernetInterfaces"
 
 - name: GET EthernetInterfaces collection
   ansible.builtin.uri:
-    url: "{{ _eth_collection_url }}"
+    url: "{{ _eth_url }}"
     method: GET
     user: "{{ _bmc_user }}"
     password: "{{ _bmc_pass }}"
@@ -54,19 +61,21 @@
     status_code: [200]
   register: _eth_coll
 
-- name: Initialize Redfish member URL list for this host
+- name: Build list of EthernetInterface member URLs
   ansible.builtin.set_fact:
-    _member_urls: []
+    _member_urls: >-
+      {{
+        _eth_coll.json.Members | default([])
+        | selectattr('@odata.id', 'defined')
+        | map(attribute='@odata.id')
+        | map('regex_replace', '^/', '')
+        | map('regex_replace', '^', 'https://' ~ _bmc_host ~ '/')
+        | list
+      }}
 
-- name: Append each EthernetInterface member URL
-  ansible.builtin.set_fact:
-    _member_urls: "{{ _member_urls + [ 'https://' ~ _host_part ~ '/' ~ (item['@odata.id'] | regex_replace('^/', '')) ] }}"
-  loop: "{{ _eth_coll.json.Members | default([]) }}"
-  when: item is mapping and item['@odata.id'] is defined
-
-- name: Fail when no Ethernet interfaces reported
+- name: Fail when Redfish reports no EthernetInterfaces
   ansible.builtin.fail:
-    msg: Redfish returned no EthernetInterfaces members for {{ _hostname }} ({{ _eth_collection_url }}).
+    msg: "Redfish returned no EthernetInterfaces for {{ _hostname }} ({{ _eth_url }})."
   when: _member_urls | length == 0
 
 - name: GET each EthernetInterface member
@@ -82,33 +91,60 @@
   loop: "{{ _member_urls }}"
   register: _iface_fetch
 
-- name: Pick first matching MAC from interfaces
+- name: Pick MAC from first interface whose @odata.id contains redfishMemberMatch
   ansible.builtin.set_fact:
     _mac_address: "{{ item.json.PermanentMACAddress | default(item.json.MACAddress | default('')) }}"
   loop: "{{ _iface_fetch.results }}"
   when:
     - (_mac_address | default('') | length) == 0
-    - (clusterDefaults.nicMapping.redfishMemberMatch | default('Embedded')) in (item.json['@odata.id'] | default(''))
+    - (_nic_map.redfishMemberMatch | default('Embedded')) in (item.json['@odata.id'] | default(''))
 
-- name: Fail when no interface matched nicMapping
+- name: Fail when no EthernetInterface matched redfishMemberMatch
   ansible.builtin.fail:
     msg: >-
-      No EthernetInterface had @odata.id containing '{{ clusterDefaults.nicMapping.redfishMemberMatch | default("Embedded") }}'
-      for host {{ _hostname }}.
-  when: _mac_address is not defined or (_mac_address | length) == 0
+      No EthernetInterface @odata.id contained '{{ _nic_map.redfishMemberMatch }}'
+      for host {{ _hostname }}. Available: {{ _iface_fetch.results | map(attribute='json') | map(attribute='@odata.id', default='?') | list }}
+  when: (_mac_address | default('') | length) == 0
 
-- name: Append discovered node entry
+# IP assignment: machineNetwork base address + node_index + 1
+# Works correctly for /24 and smaller (last-octet arithmetic only).
+# For /16 or wider subnets, replace with an ipaddress-aware step.
+- name: Parse machineNetwork CIDR parts
+  ansible.builtin.set_fact:
+    _net_octets: "{{ _machine_cidr.split('/')[0].split('.') }}"
+    _prefix_len: "{{ _machine_cidr.split('/')[1] | int }}"
+
+- name: Compute host IP (base + index + 1 in last octet)
+  ansible.builtin.set_fact:
+    _host_ip: "{{ _net_octets[:3] | join('.') }}.{{ (_net_octets[3] | int) + (_node_index | int) + 1 }}"
+
+- name: Append fully-populated node entry to discovered list
   ansible.builtin.set_fact:
     _discovered_nodes: "{{ _discovered_nodes + [_entry] }}"
   vars:
     _entry:
-      hostname: "{{ _hostname }}"
-      role: "{{ clusterDefaults.nodeRole | default('master') }}"
-      nodeNetwork:
-        interfaces:
-          - name: "{{ clusterDefaults.nicMapping.logicalName | default('eno1') }}"
-            macAddress: "{{ _mac_address }}"
-      rootDeviceHints: "{{ clusterDefaults.rootDeviceHints | default({}) }}"
+      hostName: "{{ _hostname }}"
+      nodeRole: "{{ _node_role }}"
       bmcAddress: "{{ _bmc_map[_hostname] }}"
       bmcCredentialsName:
         name: "{{ 'bmc-' ~ cluster.name ~ '-' ~ _hostname }}"
+      nicMapping:
+        logicalName: "{{ _nic_map.logicalName }}"
+        redfishMemberMatch: "{{ _nic_map.redfishMemberMatch }}"
+      rootDeviceHints: "{{ clusterDefaults.rootDeviceHints | default({}) }}"
+      nodeNetwork:
+        config:
+          interfaces:
+            - name: "{{ _nic_map.logicalName }}"
+              type: ethernet
+              state: up
+              macAddress: "{{ _mac_address }}"
+              ipv4:
+                enabled: true
+                dhcp: false
+                address:
+                  - ip: "{{ _host_ip }}"
+                    prefix-length: "{{ _prefix_len }}"
+        interfaces:
+          - name: "{{ _nic_map.logicalName }}"
+            macAddress: "{{ _mac_address }}"

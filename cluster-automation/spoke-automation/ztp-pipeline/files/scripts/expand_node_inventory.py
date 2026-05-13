@@ -32,6 +32,20 @@ def _bmc_creds_name(cluster_name: str, hostname: str) -> str:
     return f"bmc-{cluster_name}-{hostname}"
 
 
+def _nic_mapping_for_role(data: dict, role: str) -> dict:
+    """Return the first nicMapping entry for the given role (masters or workers)."""
+    nic_mappings = data.get("nicMappings") or {}
+    role_key = "masters" if role == "master" else "workers"
+    entries = nic_mappings.get(role_key) or []
+    if entries and isinstance(entries[0], dict):
+        return entries[0]
+    # Fallback to legacy clusterDefaults.nicMapping if present
+    return (data.get("clusterDefaults") or {}).get("nicMapping") or {
+        "logicalName": "eno1",
+        "redfishMemberMatch": "Embedded",
+    }
+
+
 def expand(data: dict) -> dict:
     nodes = data.get("nodes")
     if isinstance(nodes, list) and len(nodes) > 0:
@@ -44,9 +58,12 @@ def expand(data: dict) -> dict:
     if not masters and not workers:
         return data
     cd = copy.deepcopy(data.get("clusterDefaults") or {})
+    # Remove singular nicMapping from clusterDefaults — it lives in nicMappings now
+    cd.pop("nicMapping", None)
     wd_raw = data.get("workerClusterDefaults")
     if isinstance(wd_raw, dict) and len(wd_raw) > 0:
         wd = copy.deepcopy(wd_raw)
+        wd.pop("nicMapping", None)
     else:
         wd = copy.deepcopy(cd)
         wd["nodeRole"] = "worker"
@@ -61,6 +78,8 @@ def expand(data: dict) -> dict:
         base = copy.deepcopy(cd)
         base.update(extra)
         base["hostName"] = host
+        if "nicMapping" not in base:
+            base["nicMapping"] = _nic_mapping_for_role(data, "master")
         if bmc_template and "bmcAddress" not in base:
             base["bmcAddress"] = _bmc_address(bmc_template, host, idx)
         if cluster_name and "bmcCredentialsName" not in base:
@@ -74,6 +93,8 @@ def expand(data: dict) -> dict:
         base = copy.deepcopy(wd)
         base.update(extra)
         base["hostName"] = host
+        if "nicMapping" not in base:
+            base["nicMapping"] = _nic_mapping_for_role(data, "worker")
         if bmc_template and "bmcAddress" not in base:
             base["bmcAddress"] = _bmc_address(bmc_template, host, idx)
         if cluster_name and "bmcCredentialsName" not in base:

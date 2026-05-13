@@ -49,9 +49,17 @@ clusterDefaults:
   nodeRole: master
   rootDeviceHints:
     deviceName: /dev/disk/by-id/scsi-0000
-  nicMapping:
-    logicalName: eno1
-    redfishMemberMatch: Embedded
+
+# Physical→logical NIC mappings per node role.
+# redfishMemberMatch: substring matched against Redfish EthernetInterfaces @odata.id
+# logicalName: CoreOS logical interface name used in NMState config
+nicMappings:
+  masters:
+    - logicalName: eno1
+      redfishMemberMatch: Embedded
+  workers:
+    - logicalName: eno1
+      redfishMemberMatch: NIC.1
 
 bmcAddressTemplate: "redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1"
 

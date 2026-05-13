@@ -49,11 +49,17 @@ templateRefs:
 clusterDefaults:
   nodeRole: master
   rootDeviceHints: {}
-  # Pick one NIC per host via Redfish EthernetInterfaces member match.
-  nicMapping:
-    logicalName: eno1
-    # Substring matched against each EthernetInterfaces member @odata.id (e.g. "Embedded.1" or "NIC.")
-    redfishMemberMatch: "Embedded"
+
+# Physical→logical NIC mappings per node role.
+# redfishMemberMatch: substring matched against Redfish EthernetInterfaces @odata.id
+# logicalName: CoreOS logical interface name used in NMState config
+nicMappings:
+  masters:
+    - logicalName: eno1
+      redfishMemberMatch: "Embedded"
+  workers:
+    - logicalName: eno1
+      redfishMemberMatch: "NIC.1"
 
 # BMC URL for Redfish (same for all hosts or use %s for hostname token).
 bmcAddressTemplate: 'redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1'
