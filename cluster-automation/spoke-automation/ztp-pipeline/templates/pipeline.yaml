@@ -216,9 +216,9 @@ spec:
               fi
               CLUSTER_DIR="$(params.manifest-output-dir)/$(params.cluster-name)"
               if [ -d "$CLUSTER_DIR" ] && [ -f "${CLUSTER_DIR}/manifests.yaml" ]; then
-                echo cluster-exists=true >> "${ROOT}/fleet-context.env"
+                echo CLUSTER_EXISTS=true >> "${ROOT}/fleet-context.env"
               else
-                echo cluster-exists=false >> "${ROOT}/fleet-context.env"
+                echo CLUSTER_EXISTS=false >> "${ROOT}/fleet-context.env"
               fi
 
     - name: detect-node-replacement
@@ -251,7 +251,7 @@ spec:
               # shellcheck source=/dev/null
               . "${ROOT}/fleet-context.env" || true
               set +a
-              CE="${cluster_exists:-false}"
+              CE="${CLUSTER_EXISTS:-false}"
               PV="$(cat "${ROOT}/pipeline-values.path")"
               MF="${ROOT}/src/$(params.manifest-output-dir)/$(params.cluster-name)/manifests.yaml"
               SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/detect_cluster_replacement.py"
