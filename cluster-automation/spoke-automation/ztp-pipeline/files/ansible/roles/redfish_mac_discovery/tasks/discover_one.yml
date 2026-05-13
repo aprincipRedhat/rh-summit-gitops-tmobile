@@ -78,10 +78,6 @@
     loop_var: _member
   when: _member['@odata.id'] is defined and (_member['@odata.id'] | length) > 0
 
-- name: Debug member URL list
-  ansible.builtin.debug:
-    msg: "EthernetInterface member URLs: {{ _member_urls }}"
-
 - name: Fail when Redfish reports no EthernetInterfaces
   ansible.builtin.fail:
     msg: "Redfish returned no EthernetInterfaces for {{ _hostname }} ({{ _eth_url }})."

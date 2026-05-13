@@ -1,44 +1,31 @@
-# `99-pipeline-values` (dev hub)
+# `99-pipeline-values`
 
-Per-spoke YAML inputs for **`helm template`** against **`cluster-automation/ztp-spoke`**.
+One YAML file per cluster: `99-pipeline-values/<cluster-name>.yaml`
 
-## Convention
+The ZTP pipeline resolves `**/99-pipeline-values/<cluster-name>.yaml` — fails if zero or multiple matches exist.
 
-Exactly one file per cluster:
+## Inventory
 
-```text
-spoke-clusters/dev/east/dev-hub-east-1/99-pipeline-values/<spoke-cluster-name>.yaml
+Use `nodeGroups` (recommended) or a flat `nodeHostnames` list. Do not commit static MAC addresses — the pipeline Ansible discovers MACs from Redfish and merges them before `helm template`.
+
+```yaml
+nodeGroups:
+  masters:
+    - hostName: master-0
+    - hostName: master-1
+    - hostName: master-2
+  workers:
+    - hostName: worker-0
 ```
 
-The ZTP Tekton pipeline searches for **`**/99-pipeline-values/<cluster-name>.yaml`** and fails if zero or multiple matches exist.
+Set `run-mac-discovery=false` on the PipelineRun only if `nodes[]` already include `macAddress`.
 
-## Hostname inventory (recommended)
-
-Use either:
-
-- **`nodeGroups`** with **`masters`** / **`workers`** (each entry is a hostname string or a dict with **`hostName`**), plus optional **`workerClusterDefaults`** for fields merged into worker nodes when expanding; or
-- Legacy **`nodeHostnames`** (flat list).
-
-Tekton runs **`expand_node_inventory.py`** on the merged pipeline values so **`nodes[]`** exists before **`helm template`**. Do **not** check in static MAC addresses — Tekton Ansible merges **`nodes`** from Redfish before **`helm template`**.
-
-For a local preview, merge with **`discovered-nodes.example.yaml`** (see **[ztp-spoke README](../../../../cluster-automation/ztp-spoke/README.md)**). If you use **`nodeGroups`** only, run **`expand_node_inventory.py`** on the merged file before **`helm template`** (the pipeline does this automatically).
-
-## Legacy static `nodes`
-
-You may still commit full **`nodes:`** with **`macAddress`** for clusters that skip discovery; **`run-mac-discovery`** can be set to **`false`** on the PipelineRun.
-
-## Optional keys for ZTP Tekton preflight
-
-Used by **`preflight-sdn`** / **`preflight-network`** tasks when enabled via Pipeline params:
+## Optional preflight keys
 
 ```yaml
 sdnValidation:
-  healthUrl: "https://example.net/sdn/health"
+  healthUrl: "https://example.net/sdn/health"   # used when run-sdn-prechecks=true
 
 networkValidation:
-  mode: ping   # ping (default behavior with Ansible) | iso — iso fails until customer tooling is wired
+  mode: ping   # ping | iso
 ```
-
-See [../../../../../cluster-automation/spoke-automation/ztp-pipeline/README.md](../../../../../cluster-automation/spoke-automation/ztp-pipeline/README.md).
-
-See also [../../../../../README.md](../../../../../README.md) (repository) and [../../../../README.md](../../../../README.md) (`spoke-clusters/`).

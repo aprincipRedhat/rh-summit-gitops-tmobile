@@ -1,23 +1,5 @@
 # `99-pipeline-values` (prod hub)
 
-Per-spoke YAML inputs for **`helm template`** against **`cluster-automation/ztp-spoke`**.
+Per-spoke YAML inputs for `helm template` against `cluster-automation/ztp-spoke`. One file per cluster: `99-pipeline-values/<cluster-name>.yaml`
 
-## Convention
-
-Exactly one file per cluster:
-
-```text
-spoke-clusters/prod/east/prod-hub-east-1/99-pipeline-values/<spoke-cluster-name>.yaml
-```
-
-The ZTP Tekton pipeline searches for **`**/99-pipeline-values/<cluster-name>.yaml`** and fails if zero or multiple matches exist.
-
-## Hostname inventory
-
-Use **`nodeGroups`** (**`masters`** / **`workers`**) or legacy **`nodeHostnames`**; Tekton runs **`expand_node_inventory.py`** then merges discovered **`nodes`** before **`helm template`**. See the dev hub **[README](../../../dev/east/dev-hub-east-1/99-pipeline-values/README.md)** for the full pattern.
-
-## Example
-
-- `prod-east-us-1.yaml` — values for cluster **`prod-east-us-1`**.
-
-See also [../../../../../README.md](../../../../../README.md) (repository) and [../../../../README.md](../../../../README.md) (`spoke-clusters/`).
+See [dev hub README](../../../../dev/east/dev-hub-east-1/99-pipeline-values/README.md) for inventory conventions (`nodeGroups`, MAC discovery, optional preflight keys).

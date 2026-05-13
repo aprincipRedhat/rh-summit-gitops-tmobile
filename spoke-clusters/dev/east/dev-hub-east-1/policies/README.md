@@ -1,37 +1,13 @@
-# Spoke policies (dev hub)
+# Spoke policies — dev-hub-east-1
 
-## Purpose
+PolicyGenerator + Kustomize for RHACM governance on hub `dev-hub-east-1`.
 
-PolicyGenerator + Kustomize source for RHACM governance policies for hub **`dev-hub-east-1`**.
+- `common-gitops-config-pg.yaml` — `ArgoCD` resource tuning (disabled by default; set `disabled: false` to apply).
+- `common-operatorpolicy-pg.yaml` — `OperatorPolicy` installs; subscription pins resolved from `ztp-common` ConfigMap.
+- Source CRs: `../../../../../source-crs/` (load restrictions disabled via `policy-generator-gitops-patch`).
 
-## Layout
-
-- **`common-gitops-config-pg.yaml`** — **`ArgoCD`** resource tuning from **`source-crs/generic-argocd-instance-resources.yaml`** + **patches** (disabled by default — set **`disabled: false`** to roll out).
-- **`common-operatorpolicy-pg.yaml`** — **`OperatorPolicy`** installs from **`source-crs/generic-operatorpolicy.yaml`** (multiple entries + **patches**).
-- **`kustomization.yaml`** — **`generators`** only (hub **`policies`** namespace + hub-template RBAC live in **`hub-clusters/day2/applications/acm-spoke-clusters`**). Hub-only Vault credential replication to Tekton namespaces is **`hub-clusters/day2/applications/acm-hub-vault-credential-sync`** (**`app-acm-hub-vault-credential-sync`**) — not in this folder.
-- **`../../../../../source-crs/`** — shared PolicyGenerator inputs at repo root.
-
-## Outputs
-
-- `Policy`
-- `Placement`
-- `PlacementBinding`
-
-## Requirements
-
-- ManagedClusters should carry labels expected by **`placement`** (for example `common: "true"`).
-- PolicyGenerator plugin must be available where Kustomize runs.
-- For OpenShift GitOps repo-server usage, sync **`hub-clusters/day2/applications/policy-generator-gitops-patch`** via Application **`app-policy-generator-gitops-patch`** (see chart README).
-
-## GitOps
-
-OpenShift GitOps Application **`app-acm-policies-dev-hub-east-1`** syncs **`spoke-clusters/dev/east/dev-hub-east-1/policies`** into namespace **`policies`**.
-
-## Build (local)
-
-From the repository root:
+ArgoCD Application `app-acm-policies-dev-hub-east-1` syncs this directory into namespace `policies`.
 
 ```bash
-cd spoke-clusters/dev/east/dev-hub-east-1/policies
-kustomize build --enable-alpha-plugins .
+kustomize build --enable-alpha-plugins spoke-clusters/dev/east/dev-hub-east-1/policies
 ```

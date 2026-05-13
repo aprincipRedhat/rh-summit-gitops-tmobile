@@ -25,12 +25,6 @@ tektonZtp:
   # images:
   #   kubeBurner: registry.example/kube-burner-runner:latest
   images: {}
-  # vault.secretName: k8s Secret injected into the Ansible pod via envFrom.
-  # Must contain VAULT_ADDR + VAULT_TOKEN. For production, remove and configure
-  # VAULT_ADDR/VAULT_TOKEN via the real Vault bootstrap. For fake-bmc testing,
-  # set to fake-vault-creds (deployed by cluster-automation/fake-bmc/manifests.yaml).
-  vault:
-    secretName: fake-vault-creds
   pipelineRun:
     example:
       clusterName: dev-east-us-1
