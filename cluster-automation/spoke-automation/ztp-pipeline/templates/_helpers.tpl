@@ -1,5 +1,5 @@
 {{- define "tekton.oseToolsImage" -}}
-registry.redhat.io/openshift4/ose-tools-rhel9:v4.16
+registry.redhat.io/openshift4/ose-tools-rhel9:v4.20
 {{- end -}}
 
 {{- define "tekton.ansibleEEImage" -}}

@@ -132,7 +132,7 @@ spec:
           - name: child-skip-deploy-watch
         steps:
           - name: bulk-spawn
-            image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.16"
+            image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.20"
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
