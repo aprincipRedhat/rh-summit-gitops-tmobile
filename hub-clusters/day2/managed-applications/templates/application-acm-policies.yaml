@@ -10,7 +10,6 @@ spec:
     repoURL: {{ include "managed-apps.repoURL" . | quote }}
     targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
     path: {{ include "managed-apps.spokePoliciesPath" . | quote }}
-    kustomize: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: policies
