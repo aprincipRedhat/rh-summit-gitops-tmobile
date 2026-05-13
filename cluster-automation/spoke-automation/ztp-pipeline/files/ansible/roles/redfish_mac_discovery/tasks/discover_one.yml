@@ -133,13 +133,10 @@
   vars:
     _entry:
       hostName: "{{ _hostname }}"
-      nodeRole: "{{ _node_role }}"
+      role: "{{ _node_role }}"
       bmcAddress: "{{ _bmc_map[_hostname] }}"
       bmcCredentialsName:
         name: "{{ 'bmc-' ~ cluster.name ~ '-' ~ _hostname }}"
-      nicMapping:
-        logicalName: "{{ _nic_map.logicalName }}"
-        redfishMemberMatch: "{{ _nic_map.redfishMemberMatch }}"
       rootDeviceHints: "{{ clusterDefaults.rootDeviceHints | default({}) }}"
       nodeNetwork:
         config:
@@ -153,7 +150,7 @@
                 dhcp: false
                 address:
                   - ip: "{{ _host_ip }}"
-                    prefix-length: "{{ _prefix_len }}"
+                    prefix-length: "{{ _prefix_len | int }}"
         interfaces:
           - name: "{{ _nic_map.logicalName }}"
             macAddress: "{{ _mac_address }}"

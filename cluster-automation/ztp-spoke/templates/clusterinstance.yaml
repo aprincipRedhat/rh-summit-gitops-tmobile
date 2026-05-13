@@ -43,7 +43,7 @@ spec:
   {{- if and $nodes (gt (len $nodes) 0) }}
   nodes:
   {{- range $n := $nodes }}
-  {{- $clean := omit $n "replacementTarget" "replacementPhase" }}
+  {{- $clean := omit $n "replacementTarget" "replacementPhase" "nicMapping" "nodeRole" }}
     - {{ toYaml $clean | nindent 6 | trim }}
   {{- end }}
   {{- end }}

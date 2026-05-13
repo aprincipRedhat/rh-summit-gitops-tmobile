@@ -47,7 +47,7 @@ templateRefs:
     namespace: openshift-siteconfig
 
 clusterDefaults:
-  nodeRole: master
+  role: master
   rootDeviceHints: {}
 
 # Physical→logical NIC mappings per node role.

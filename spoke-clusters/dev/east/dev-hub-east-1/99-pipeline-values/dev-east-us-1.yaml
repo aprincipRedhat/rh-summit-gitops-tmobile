@@ -46,7 +46,7 @@ nodeGroups:
   workers: []
 
 clusterDefaults:
-  nodeRole: master
+  role: master
   rootDeviceHints:
     deviceName: /dev/disk/by-id/scsi-0000
 
