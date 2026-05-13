@@ -44,12 +44,17 @@ policies:
             kind: OperatorPolicy
             metadata:
               name: policy-kubernetes-nmstate-operator
-              namespace: openshift-operators
+              namespace: openshift-nmstate
             spec:
               upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.upgradeApproval" hub}}'
+              operatorGroup:
+                name: openshift-nmstate
+                namespace: openshift-nmstate
+                targetNamespaces:
+                  - openshift-nmstate
               subscription:
                 name: kubernetes-nmstate-operator
-                namespace: openshift-operators
+                namespace: openshift-nmstate
                 channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.channel" hub}}'
                 source: redhat-operators
                 sourceNamespace: openshift-marketplace
