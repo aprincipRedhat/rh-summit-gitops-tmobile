@@ -527,10 +527,24 @@ spec:
                 exit 1
               fi
           - name: helm-template-and-lint
-            image: {{ include "tekton.oseToolsImage" . | quote }}
+            image: {{ include "tekton.ztpToolsImage" . | quote }}
             script: |
               #!/bin/sh
               set -eu
+              # Bootstrap helm from the OCP console downloads route if not present in the image.
+              if ! command -v helm >/dev/null 2>&1; then
+                HELM_BIN="$(workspaces.shared.path)/.bin/helm"
+                mkdir -p "$(dirname "$HELM_BIN")"
+                DOWNLOADS_HOST=$(oc get route downloads -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null || true)
+                if [ -n "$DOWNLOADS_HOST" ]; then
+                  curl -kfsSL "https://${DOWNLOADS_HOST}/amd64/linux/helm" -o "$HELM_BIN"
+                else
+                  curl -fsSL "https://get.helm.sh/helm-v3.17.3-linux-amd64.tar.gz" \
+                    | tar -xz -C "$(dirname "$HELM_BIN")" --strip-components=1 linux-amd64/helm
+                fi
+                chmod +x "$HELM_BIN"
+                export PATH="$(dirname "$HELM_BIN"):$PATH"
+              fi
               cd "$(workspaces.shared.path)/src"
               ROOT="$(workspaces.shared.path)"
               VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path")"
