@@ -8,6 +8,7 @@
   pre_tasks:
     - name: Derive nodeHostnames from nodeGroups when set
       ansible.builtin.include_tasks: pre_tasks_node_inventory.yml
+      tags: always
       when:
         - nodeGroups is defined
         - (nodeGroups.masters | default([]) | length > 0) or (nodeGroups.workers | default([]) | length > 0)
