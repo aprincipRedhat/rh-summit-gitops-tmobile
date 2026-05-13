@@ -67,13 +67,28 @@ data:
             if not token: _json_response(self,403,{"errors":["missing token"]}); return
             _json_response(self,200,{"data":{"data":{"username":USERNAME,"password":PASSWORD}}})
 
-    def _serve(HandlerClass, port):
+    import subprocess, ssl, tempfile
+
+    def _gen_cert():
+        d=tempfile.mkdtemp()
+        k=d+"/key.pem"; c=d+"/cert.pem"
+        subprocess.run(["openssl","req","-x509","-nodes","-newkey","rsa:2048","-keyout",k,"-out",c,"-subj","/CN=fake-bmc","-days","3650"],check=True,capture_output=True)
+        ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(c,k)
+        ctx.check_hostname=False
+        return ctx
+
+    _tls=_gen_cert()
+    sys.stderr.write("[fake-bmc] TLS self-signed cert generated\n"); sys.stderr.flush()
+
+    def _serve(HandlerClass, port, tls=None):
         s=http.server.HTTPServer(("0.0.0.0",port),HandlerClass)
-        sys.stderr.write(f"[fake-bmc] {HandlerClass.__name__} on :{port}\n"); sys.stderr.flush()
+        if tls: s.socket=tls.wrap_socket(s.socket,server_side=True)
+        sys.stderr.write(f"[fake-bmc] {HandlerClass.__name__} on :{port} {'(TLS)' if tls else '(plain)'}\n"); sys.stderr.flush()
         s.serve_forever()
 
     threading.Thread(target=_serve,args=(VaultHandler,8001),daemon=True).start()
-    _serve(RedfishHandler,8000)
+    _serve(RedfishHandler,8000,tls=_tls)
 ---
 apiVersion: apps/v1
 kind: Deployment
