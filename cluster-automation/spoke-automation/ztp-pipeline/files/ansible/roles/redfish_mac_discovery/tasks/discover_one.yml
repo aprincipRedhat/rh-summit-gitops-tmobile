@@ -65,11 +65,10 @@
   ansible.builtin.set_fact:
     _member_urls: >-
       {{
-        _eth_coll.json.Members | default([])
-        | selectattr('@odata.id', 'defined')
-        | map(attribute='@odata.id')
-        | map('regex_replace', '^/', '')
-        | map('regex_replace', '^', 'https://' ~ _bmc_host ~ '/')
+        _eth_coll.json.get('Members', [])
+        | map(attribute='@odata.id', default='')
+        | select
+        | map('regex_replace', '^/', 'https://' ~ _bmc_host ~ '/')
         | list
       }}
 
