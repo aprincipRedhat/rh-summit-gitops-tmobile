@@ -8,14 +8,13 @@ data:
   clusterName: {{ .Values.cluster.name | quote }}
 {{- $cv := .Values.clusterValues | default dict }}
 {{- range $k, $v := ($cv.data | default dict) }}
-  {{ $k }}: |-
-{{ $v | toString | trim | nindent 4 }}
+  {{ $k }}: {{ $v | toString | trim | quote }}
 {{- end }}
 {{- range $subName, $op := (.Values.operators | default dict) }}
   operator.{{ $subName }}.upgradeApproval: {{ ($op.upgradeApproval | default "Manual") | quote }}
   operator.{{ $subName }}.channel: {{ $op.channel | quote }}
   operator.{{ $subName }}.startingCSV: {{ $op.startingCSV | quote }}
   operator.{{ $subName }}.approvedVersionsYaml: |
-{{ toYaml $op.approvedCSVs | nindent 4 }}
+{{ toYaml $op.approvedCSVs | indent 4 }}
 {{- end }}
 {{- end }}

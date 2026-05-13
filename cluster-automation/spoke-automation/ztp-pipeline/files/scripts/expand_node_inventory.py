@@ -16,6 +16,22 @@ def _host_item(item):
     return None, {}
 
 
+def _bmc_address(template: str, hostname: str, index: int) -> str:
+    """Expand bmcAddressTemplate: {hostname} / %s → hostname, {index} / %d → index."""
+    result = template.replace("{hostname}", hostname).replace("{index}", str(index))
+    # printf-style: first %s → hostname, first %d → index
+    try:
+        result = result % hostname
+    except (TypeError, ValueError):
+        pass
+    return result
+
+
+def _bmc_creds_name(cluster_name: str, hostname: str) -> str:
+    """Mirror the ztp-spoke helper: bmc-<clusterName>-<hostname>."""
+    return f"bmc-{cluster_name}-{hostname}"
+
+
 def expand(data: dict) -> dict:
     nodes = data.get("nodes")
     if isinstance(nodes, list) and len(nodes) > 0:
@@ -34,7 +50,10 @@ def expand(data: dict) -> dict:
     else:
         wd = copy.deepcopy(cd)
         wd["nodeRole"] = "worker"
+    bmc_template: str = data.get("bmcAddressTemplate") or ""
+    cluster_name: str = (data.get("cluster") or {}).get("name") or ""
     out: list = []
+    idx = 0
     for item in masters:
         host, extra = _host_item(item)
         if not host:
@@ -42,7 +61,12 @@ def expand(data: dict) -> dict:
         base = copy.deepcopy(cd)
         base.update(extra)
         base["hostName"] = host
+        if bmc_template and "bmcAddress" not in base:
+            base["bmcAddress"] = _bmc_address(bmc_template, host, idx)
+        if cluster_name and "bmcCredentialsName" not in base:
+            base["bmcCredentialsName"] = {"name": _bmc_creds_name(cluster_name, host)}
         out.append(base)
+        idx += 1
     for item in workers:
         host, extra = _host_item(item)
         if not host:
@@ -50,7 +74,12 @@ def expand(data: dict) -> dict:
         base = copy.deepcopy(wd)
         base.update(extra)
         base["hostName"] = host
+        if bmc_template and "bmcAddress" not in base:
+            base["bmcAddress"] = _bmc_address(bmc_template, host, idx)
+        if cluster_name and "bmcCredentialsName" not in base:
+            base["bmcCredentialsName"] = {"name": _bmc_creds_name(cluster_name, host)}
         out.append(base)
+        idx += 1
     data["nodes"] = out
     return data
 

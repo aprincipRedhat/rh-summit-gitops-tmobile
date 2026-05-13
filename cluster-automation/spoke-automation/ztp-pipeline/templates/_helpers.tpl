@@ -8,7 +8,11 @@ once custom-container-images/ose-ztp-tools is built and pushed to your mirror re
 Falls back to base ose-tools-rhel9 (helm is bootstrapped at runtime in the step script).
 */}}
 {{- define "tekton.ztpToolsImage" -}}
-{{- dig "tektonZtp" "images" "ztpTools" "" (fromJson (toJson .Values)) | default (include "tekton.oseToolsImage" .) -}}
+{{- $img := "" -}}
+{{- if and .Values.tektonZtp .Values.tektonZtp.images -}}
+{{- $img = .Values.tektonZtp.images.ztpTools | default "" -}}
+{{- end -}}
+{{- $img | default (include "tekton.oseToolsImage" .) -}}
 {{- end -}}
 
 {{- define "tekton.ansibleEEImage" -}}

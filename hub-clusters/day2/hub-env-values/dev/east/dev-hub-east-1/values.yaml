@@ -20,11 +20,11 @@ vaultBootstrap:
     secretId: "REPLACE_ME"
 
 tektonZtp:
-  images:
-    # Build custom-container-images/kube-burner-runner and push to your mirror registry,
-    # then set kubeBurner here. Falls back to ose-tools-rhel9 when unset (run-kube-burner-tests
-    # will exit 0 without executing since kube-burner binary won't be present).
-    # kubeBurner: registry.example/kube-burner-runner:latest
+  # images.kubeBurner: set once custom-container-images/kube-burner-runner is built & pushed.
+  # Falls back to ose-tools-rhel9; run-kube-burner-tests step exits 0 without executing.
+  # images:
+  #   kubeBurner: registry.example/kube-burner-runner:latest
+  images: {}
   pipelineRun:
     example:
       clusterName: dev-east-us-1

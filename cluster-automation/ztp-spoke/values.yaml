@@ -31,10 +31,10 @@ nodeReplacement:
 # When vault.enabled, Helm emits VaultStaticSecret CRs. Use a namespaced VaultAuth ref so one
 # hub-scoped VaultAuth (see vault-hub-configuration) can serve all spokes: "<vso-ns>/<vault-auth-name>".
 vault:
-  enabled: false
+  enabled: true
   mount: kv-v2
   vaultAuthRef: vault-secrets-operator/vault-auth
-  # printf-style pattern; %s is replaced with each hostname from nodeHostnames (e.g. "%s" alone means hostname-only segment — prefer full logical path per env).
+  # printf-style pattern; %s is replaced with each hostname. Override per spoke in 99-pipeline-values.
   bmcCredentialsVaultPathPattern: "bmc-credentials-%s"
 
 assistedDeployment:
@@ -42,7 +42,9 @@ assistedDeployment:
     # KV-v2 logical path (without mount); synced to pullSecretRef.name
     vaultPath: ""
 
-templateRefs: []
+templateRefs:
+  - name: example-sno-template
+    namespace: openshift-siteconfig
 
 clusterDefaults:
   nodeRole: master
@@ -63,7 +65,7 @@ extraLabels: {}
 extraAnnotations: {}
 
 ztpCommon:
-  enabled: false
+  enabled: true
   namespace: ztp-common
 
 clusterValues:

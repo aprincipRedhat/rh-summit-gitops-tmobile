@@ -1,2 +1,29 @@
-# Pipeline SA/RBAC, Tekton image URIs, and feature defaults are hardcoded in templates. Fleet paths and toggles: hub hub-env-values + spoke 99-pipeline-values.
-{}
+# Chart-level defaults for tektonZtp. Override specific keys in hub-env-values/<env>/values.yaml.
+# All fleet paths, secrets, and per-env toggles live in hub-env-values + spoke 99-pipeline-values.
+tektonZtp:
+  pipeline:
+    name: ztp-cluster-render-pr
+  serviceAccount:
+    name: pipeline-ztp-gitops
+  images:
+    # ztpTools: ""   # set in hub-env-values to use a custom ose-ztp-tools image; falls back to ose-tools-rhel9
+    # kubeBurner: "" # set in hub-env-values once kube-burner-runner image is built; falls back to ose-tools-rhel9
+  git:
+    cloneDepth: 50
+  github:
+    secretName: github-tekton-token
+    secretKey: token
+  ansible:
+    preflightConfigMapName: ztp-ansible-preflight
+  vault:
+    secretName: ""
+  manualApproval:
+    timeoutSeconds: 7200
+  clusterValidation:
+    timeoutSeconds: 3600
+  waitForMerge:
+    pollIntervalSeconds: 30
+    timeoutSeconds: 7200
+  deployWatch:
+    pollIntervalSeconds: 30
+    timeoutSeconds: 14400
