@@ -70,11 +70,17 @@
     _member_urls: >-
       {{
         _member_urls + [
-          'https://' ~ _bmc_host ~ (item['@odata.id'] | regex_replace('^/?', '/'))
+          'https://' ~ _bmc_host ~ (_member['@odata.id'] | regex_replace('^/?', '/'))
         ]
       }}
   loop: "{{ _eth_coll.json['Members'] | default([]) }}"
-  when: item['@odata.id'] is defined and (item['@odata.id'] | length) > 0
+  loop_control:
+    loop_var: _member
+  when: _member['@odata.id'] is defined and (_member['@odata.id'] | length) > 0
+
+- name: Debug member URL list
+  ansible.builtin.debug:
+    msg: "EthernetInterface member URLs: {{ _member_urls }}"
 
 - name: Fail when Redfish reports no EthernetInterfaces
   ansible.builtin.fail:
@@ -83,7 +89,7 @@
 
 - name: GET each EthernetInterface member
   ansible.builtin.uri:
-    url: "{{ item }}"
+    url: "{{ _iface_url }}"
     method: GET
     user: "{{ _bmc_user }}"
     password: "{{ _bmc_pass }}"
@@ -92,21 +98,25 @@
     return_content: true
     status_code: [200]
   loop: "{{ _member_urls }}"
+  loop_control:
+    loop_var: _iface_url
   register: _iface_fetch
 
 - name: Pick MAC from first interface whose @odata.id contains redfishMemberMatch
   ansible.builtin.set_fact:
-    _mac_address: "{{ item.json.PermanentMACAddress | default(item.json.MACAddress | default('')) }}"
+    _mac_address: "{{ _iface_result.json.PermanentMACAddress | default(_iface_result.json.MACAddress | default('')) }}"
   loop: "{{ _iface_fetch.results }}"
+  loop_control:
+    loop_var: _iface_result
   when:
     - (_mac_address | default('') | length) == 0
-    - (_nic_map.redfishMemberMatch | default('Embedded')) in (item.json['@odata.id'] | default(''))
+    - (_nic_map.redfishMemberMatch | default('Embedded')) in (_iface_result.json['@odata.id'] | default(''))
 
 - name: Fail when no EthernetInterface matched redfishMemberMatch
   ansible.builtin.fail:
     msg: >-
-      No EthernetInterface @odata.id contained '{{ _nic_map.redfishMemberMatch }}'
-      for host {{ _hostname }}.
+      No EthernetInterface whose @odata.id contains '{{ _nic_map.redfishMemberMatch }}'
+      found for host {{ _hostname }}. Fetched {{ _iface_fetch.results | length }} interface(s).
   when: (_mac_address | default('') | length) == 0
 
 # IP assignment: machineNetwork base address + node_index + 1
