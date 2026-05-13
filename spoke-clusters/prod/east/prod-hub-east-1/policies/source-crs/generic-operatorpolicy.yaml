@@ -4,7 +4,7 @@ apiVersion: policy.open-cluster-management.io/v1beta1
 kind: OperatorPolicy
 metadata:
   name: generic-operatorpolicy-placeholder
-  namespace: '{{ fromClusterClaim "name" }}'
+  namespace: openshift-operators
 spec:
   remediationAction: enforce
   severity: high

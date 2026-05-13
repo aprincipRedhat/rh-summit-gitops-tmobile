@@ -26,33 +26,33 @@ policies:
             kind: OperatorPolicy
             metadata:
               name: policy-openshift-gitops-operator
-              namespace: '{{ fromClusterClaim "name" }}'
+              namespace: openshift-operators
             spec:
-              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.upgradeApproval" hub}}'
+              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.upgradeApproval" hub}}'
               subscription:
                 name: openshift-gitops-operator
                 namespace: openshift-operators
-                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.channel" hub}}'
+                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.channel" hub}}'
                 source: redhat-operators
                 sourceNamespace: openshift-marketplace
-                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
+                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.startingCSV" hub}}'
               versions:
-                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.openshift-gitops-operator.startingCSV" hub}}'
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.startingCSV" hub}}'
       - path: source-crs/generic-operatorpolicy.yaml
         patches:
           - apiVersion: policy.open-cluster-management.io/v1beta1
             kind: OperatorPolicy
             metadata:
               name: policy-kubernetes-nmstate-operator
-              namespace: '{{ fromClusterClaim "name" }}'
+              namespace: openshift-operators
             spec:
-              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.upgradeApproval" hub}}'
+              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.upgradeApproval" hub}}'
               subscription:
                 name: kubernetes-nmstate-operator
                 namespace: openshift-operators
-                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.channel" hub}}'
+                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.channel" hub}}'
                 source: redhat-operators
                 sourceNamespace: openshift-marketplace
-                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
+                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
               versions:
-                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" (fromClusterClaim "name")) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
