@@ -21,8 +21,10 @@ vaultBootstrap:
 
 tektonZtp:
   images:
-    # Build custom-container-images/kube-burner-runner; replace registry host with your mirror.
-    kubeBurner: registry.ocp.example/kube-burner-runner:latest
+    # Build custom-container-images/kube-burner-runner and push to your mirror registry,
+    # then set kubeBurner here. Falls back to ose-tools-rhel9 when unset (run-kube-burner-tests
+    # will exit 0 without executing since kube-burner binary won't be present).
+    # kubeBurner: registry.example/kube-burner-runner:latest
   pipelineRun:
     example:
       clusterName: dev-east-us-1
