@@ -1,0 +1,101 @@
+---
+# Source: ztp-spoke/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "dev-east-us-1"
+  labels:
+    cluster.open-cluster-management.io/siteconfig: "dev-east-us-1"
+---
+# Source: ztp-spoke/templates/0-ztp-common.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "dev-east-us-1-unique-config"
+  namespace: "ztp-common"
+data:
+  clusterName: "dev-east-us-1"
+  etcdBackupSchedule: "0 */12 * * *"
+  operator.kubernetes-nmstate-operator.upgradeApproval: "Manual"
+  operator.kubernetes-nmstate-operator.channel: "stable"
+  operator.kubernetes-nmstate-operator.startingCSV: "kubernetes-nmstate-operator.v4.20.0"
+  operator.kubernetes-nmstate-operator.approvedVersionsYaml: |
+    - kubernetes-nmstate-operator.v4.20.0
+  operator.openshift-gitops-operator.upgradeApproval: "Manual"
+  operator.openshift-gitops-operator.channel: "latest"
+  operator.openshift-gitops-operator.startingCSV: "openshift-gitops-operator.v1.20.3"
+  operator.openshift-gitops-operator.approvedVersionsYaml: |
+    - openshift-gitops-operator.v1.20.3
+  operator.openshift-pipelines-operator.upgradeApproval: "Manual"
+  operator.openshift-pipelines-operator.channel: "latest"
+  operator.openshift-pipelines-operator.startingCSV: "openshift-pipelines-operator-rh.v1.22.0"
+  operator.openshift-pipelines-operator.approvedVersionsYaml: |
+    - openshift-pipelines-operator-rh.v1.22.0
+---
+# Source: ztp-spoke/templates/clusterinstance.yaml
+apiVersion: siteconfig.open-cluster-management.io/v1alpha1
+kind: ClusterInstance
+metadata:
+  name: dev-east-us-1
+  namespace: dev-east-us-1
+  labels:
+    cluster.open-cluster-management.io/siteconfig: "dev-east-us-1"
+spec:
+  clusterName: "dev-east-us-1"
+  pullSecretRef:
+    name: "pull-secret"
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  machineNetwork:
+    - cidr: 192.168.20.0/24
+  serviceNetwork:
+    - 172.30.0.0/16
+  extraLabels:
+    ManagedCluster:
+      common: "true"
+      ztp-demo: "true"
+  templateRefs:
+    - name: example-sno-template
+      namespace: openshift-siteconfig
+  nodes:
+    - bmcAddress: redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1
+      bmcCredentialsName:
+        name: bmc-dev-east-us-1-master-0
+      hostName: master-0
+      nicMapping:
+        logicalName: eno1
+        redfishMemberMatch: Embedded
+      nodeRole: master
+      rootDeviceHints:
+        deviceName: /dev/disk/by-id/scsi-0000
+---
+# Source: ztp-spoke/templates/vaultstaticsecret-assisted-pull.yaml
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: "dev-east-us-1-assisted-pull-secret"
+  namespace: "dev-east-us-1"
+spec:
+  vaultAuthRef: "vault-secrets-operator/vault-auth"
+  mount: "kv-v2"
+  path: "vault-root/data/dev/east/dev-hub-east-1/assisted-deployment-pull-secret"
+  type: kv-v2
+  destination:
+    name: "pull-secret"
+    create: true
+---
+# Source: ztp-spoke/templates/vaultstaticsecret-bmc.yaml
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: "dev-east-us-1-bmc-sync-master-0"
+  namespace: "dev-east-us-1"
+spec:
+  vaultAuthRef: "vault-secrets-operator/vault-auth"
+  mount: "kv-v2"
+  path: "vault-root/data/dev/east/dev-hub-east-1/bmc/master-0"
+  type: kv-v2
+  destination:
+    name: "bmc-dev-east-us-1-master-0"
+    create: true
