@@ -61,16 +61,20 @@
     status_code: [200]
   register: _eth_coll
 
+- name: Reset EthernetInterface member URL accumulator
+  ansible.builtin.set_fact:
+    _member_urls: []
+
 - name: Build list of EthernetInterface member URLs
   ansible.builtin.set_fact:
     _member_urls: >-
       {{
-        _eth_coll.json.get('Members', [])
-        | map(attribute='@odata.id', default='')
-        | select
-        | map('regex_replace', '^/', 'https://' ~ _bmc_host ~ '/')
-        | list
+        _member_urls + [
+          'https://' ~ _bmc_host ~ (item['@odata.id'] | regex_replace('^/?', '/'))
+        ]
       }}
+  loop: "{{ _eth_coll.json['Members'] | default([]) }}"
+  when: item['@odata.id'] is defined and (item['@odata.id'] | length) > 0
 
 - name: Fail when Redfish reports no EthernetInterfaces
   ansible.builtin.fail:
@@ -102,7 +106,7 @@
   ansible.builtin.fail:
     msg: >-
       No EthernetInterface @odata.id contained '{{ _nic_map.redfishMemberMatch }}'
-      for host {{ _hostname }}. Available: {{ _iface_fetch.results | map(attribute='json') | map(attribute='@odata.id', default='?') | list }}
+      for host {{ _hostname }}.
   when: (_mac_address | default('') | length) == 0
 
 # IP assignment: machineNetwork base address + node_index + 1
