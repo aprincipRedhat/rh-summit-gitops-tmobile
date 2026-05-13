@@ -26,7 +26,7 @@ data:
     import base64, json, os, sys, http.server, threading
 
     USERNAME           = os.environ.get("BMC_USERNAME",    "admin")
-    PASSWORD           = os.environ.get("BMC_PASSWORD",    "redfish")
+    PASSWORD           = os.environ.get("BMC_PASSWORD",    "Fakebmc@123")
     IFACE_MAC_EMBEDDED = os.environ.get("BMC_MAC_EMBEDDED", "AA:BB:CC:11:22:33")
     IFACE_MAC_NIC2     = os.environ.get("BMC_MAC_NIC2",     "AA:BB:CC:44:55:66")
 
@@ -161,7 +161,7 @@ metadata:
     app.kubernetes.io/name: fake-bmc
 stringData:
   username: admin
-  password: redfish
+  password: Fakebmc@123
 ---
 apiVersion: v1
 kind: Service
