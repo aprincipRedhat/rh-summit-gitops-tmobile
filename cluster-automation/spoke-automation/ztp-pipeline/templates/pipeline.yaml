@@ -640,26 +640,22 @@ spec:
                   ;;
               esac
               git push -u origin "$BRANCH"
-              export GH_TOKEN
-              BODY_FILE="$(mktemp)"
-              {
-                echo "Change-type: ${CHANGE_TYPE}"
-                echo ""
-                echo "Rendered from cluster-automation/ztp-spoke via OpenShift Pipelines."
-                echo "Cluster path: $(params.manifest-output-dir)/$(params.cluster-name)/"
-              } > "$BODY_FILE"
-              gh pr create \
-                --repo "$(params.github-repo-slug)" \
-                --base "$(params.git-base-branch)" \
-                --head "$BRANCH" \
-                --title "$TITLE" \
-                --body-file "$BODY_FILE" 2>&1
-              rm -f "$BODY_FILE"
-              PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
+              BODY="Change-type: ${CHANGE_TYPE}\n\nRendered from cluster-automation/ztp-spoke via OpenShift Pipelines.\nCluster path: $(params.manifest-output-dir)/$(params.cluster-name)/"
+              OWNER_REPO="$(params.github-repo-slug)"
+              PR_RESPONSE=$(curl -fsSL \
+                -X POST \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${OWNER_REPO}/pulls" \
+                -d "{\"title\":\"${TITLE}\",\"body\":\"$(printf '%s' "$BODY" | sed 's/\\/\\\\/g; s/"/\\"/g')\",\"head\":\"${BRANCH}\",\"base\":\"$(params.git-base-branch)\"}" 2>&1)
+              echo "$PR_RESPONSE"
+              PR_NUM=$(echo "$PR_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('number',''))" 2>/dev/null || true)
               if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
                 echo "$PR_NUM" > "${ROOT}/ztp-pr-number.txt"
+                echo "PR #${PR_NUM} created: https://github.com/${OWNER_REPO}/pull/${PR_NUM}"
               else
-                echo "warning: could not resolve PR number for branch ${BRANCH}" >&2
+                echo "warning: could not resolve PR number" >&2
                 : > "${ROOT}/ztp-pr-number.txt"
               fi
 
