@@ -21,7 +21,7 @@
 
 - name: Fetch BMC credentials from Vault KV v2
   ansible.builtin.uri:
-    url: "{{ _vault_addr }}/v1/{{ vault.mount }}/data/{{ _vault_secret_rel_path }}"
+    url: "{{ _vault_addr }}/v1/{{ _vault_secret_rel_path }}"
     method: GET
     headers:
       X-Vault-Token: "{{ _vault_token }}"
