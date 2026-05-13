@@ -230,21 +230,18 @@ spec:
               collect_cr() {
                 local kind="$1"
                 local out="$2"
-                : > "${out}.raw"
+                # collect matching documents as compact JSON (one per line) for reliable jq parsing
+                : > "${out}.jsonl"
                 while read -r f; do
                   [ -z "${f}" ] && continue
-                  yq ea -o=json ". | select(.kind == \"${kind}\")" "${f}" 2>/dev/null >> "${out}.raw" || true
+                  yq ea -o=json ". | select(.kind == \"${kind}\")" "${f}" 2>/dev/null \
+                    | jq -c 'select(. != null) | {name: .metadata.name, spec: .spec}' >> "${out}.jsonl" || true
                 done < <(find "${MIRROR}" -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort)
 
-                if [ ! -s "${out}.raw" ]; then
+                if [ ! -s "${out}.jsonl" ]; then
                   echo '[]' > "${out}.json"
                   return 0
                 fi
-                : > "${out}.jsonl"
-                while IFS= read -r line; do
-                  [ -z "${line}" ] && continue
-                  echo "${line}" | jq -c '{name: .metadata.name, spec: .spec}' >> "${out}.jsonl"
-                done < "${out}.raw"
                 jq -s '.' "${out}.jsonl" > "${out}.json"
               }
 
