@@ -44,8 +44,7 @@ spec:
   nodes:
   {{- range $n := $nodes }}
   {{- $clean := omit $n "replacementTarget" "replacementPhase" }}
-    -
-{{- toYaml $clean | nindent 6 }}
+    - {{ toYaml $clean | nindent 6 | trim }}
   {{- end }}
   {{- end }}
   {{- if .Values.extraManifestsRefs }}
