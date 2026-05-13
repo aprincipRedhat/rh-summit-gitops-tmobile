@@ -1,0 +1,72 @@
+---
+# PipelineRun that exercises full MAC discovery against the in-cluster fake-bmc server.
+#
+# Prerequisites:
+#   1. oc apply -f cluster-automation/fake-bmc/manifests.yaml
+#   2. bash cluster-automation/fake-bmc/seed-vault.sh
+#   3. oc wait deploy/fake-bmc -n ztp-testing --for=condition=Available --timeout=60s
+#
+# The fake BMC responds to Redfish EthernetInterfaces requests and returns:
+#   Embedded.1 → MAC AA:BB:CC:11:22:33  (matched by nicMappings.masters[0].redfishMemberMatch: Embedded)
+#
+# The pipeline values below override bmcAddressTemplate to point at the in-cluster service,
+# keeping everything else from the real dev-east-us-1 pipeline values file.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: ztp-mac-discovery-test-1
+  namespace: openshift-pipelines
+spec:
+  pipelineRef:
+    name: ztp-cluster-render-pr
+  serviceAccountName: pipeline-ztp-gitops
+  params:
+    - name: cluster-name
+      value: dev-east-us-1
+    - name: gitops-repo-url
+      value: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    - name: git-revision
+      value: working-branch
+    - name: git-base-branch
+      value: working-branch
+    - name: github-repo-slug
+      value: aprincipRedhat/rh-summit-gitops-tmobile
+    - name: manifest-output-dir
+      value: spoke-clusters/dev/east/dev-hub-east-1/clusters
+    - name: pipeline-values-path
+      value: spoke-clusters/dev/east/dev-hub-east-1/99-pipeline-values/dev-east-us-1.yaml
+    - name: ztp-chart-relative-path
+      value: cluster-automation/ztp-spoke
+    - name: hub-values-path
+      value: hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
+    # Overlay: deep-merged on top of dev-east-us-1.yaml before Ansible runs.
+    # Points bmcAddressTemplate at the in-cluster fake-bmc service.
+    - name: pipeline-values-overlay-path
+      value: spoke-clusters/dev/east/dev-hub-east-1/99-pipeline-values/dev-east-us-1-fakebmc.yaml
+    # Ansible flags — enable hardware+redfish+mac-discovery, skip network ping
+    - name: skip-ansible
+      value: "false"
+    - name: run-hardware-validation
+      value: "true"
+    - name: run-network-connectivity-test
+      value: "false"   # no real network path to fake-bmc for ICMP
+    - name: run-mac-discovery
+      value: "true"
+    # Pipeline flow
+    - name: skip-wait-for-merge
+      value: "true"
+    - name: skip-manual-approval-gate
+      value: "true"
+    - name: run-kube-burner-tests
+      value: "false"
+    # Vault for BMC cred lookup (must match what seed-vault.sh wrote)
+    - name: vault-secret-name
+      value: ""   # set if your Ansible env needs explicit VAULT_ADDR/TOKEN override
+  workspaces:
+    - name: shared
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi

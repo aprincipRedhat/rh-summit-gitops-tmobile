@@ -123,6 +123,13 @@ spec:
     - name: skip-replacement-wait-merge-final
       type: string
       default: "false"
+    - name: pipeline-values-overlay-path
+      type: string
+      default: ""
+      description: >-
+        Optional repo-relative path to a YAML file deep-merged on top of the cluster pipeline values
+        before Ansible and Helm run. Use for test overrides (e.g. pointing bmcAddressTemplate at a
+        fake-bmc server) without modifying the base pipeline values file.
     - name: skip-replacement-deploy-watch
       type: string
       default: "false"
@@ -149,6 +156,8 @@ spec:
           value: $(params.cluster-name)
         - name: manifest-output-dir
           value: $(params.manifest-output-dir)
+        - name: pipeline-values-overlay-path
+          value: $(params.pipeline-values-overlay-path)
       taskSpec:
         workspaces:
           - name: shared
@@ -157,6 +166,8 @@ spec:
           - name: git-revision
           - name: cluster-name
           - name: manifest-output-dir
+          - name: pipeline-values-overlay-path
+            default: ""
         steps:
           - name: clone-and-resolve-values
             image: {{ include "tekton.oseToolsImage" . | quote }}
@@ -185,6 +196,14 @@ spec:
               fi
               REL=$(head -n 1 "$TMP")
               ABS="$(pwd)/${REL#./}"
+              OVERLAY="$(params.pipeline-values-overlay-path)"
+              if [ -n "$OVERLAY" ] && [ -f "./${OVERLAY}" ]; then
+                MERGED_BASE="${ROOT}/pipeline-values-base.yaml"
+                python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py" \
+                  "$ABS" "./${OVERLAY}" "$MERGED_BASE"
+                ABS="$MERGED_BASE"
+                echo "Applied overlay ${OVERLAY} → merged base"
+              fi
               echo "$ABS" > "${ROOT}/pipeline-values.path"
               echo "Resolved pipeline values: $ABS"
               if echo "$REL" | grep -q '^spoke-clusters/'; then
