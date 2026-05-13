@@ -42,7 +42,7 @@ tektonMirror:
     mirrorImage: image-registry.openshift-image-registry.svc:5000/openshift-pipelines/oc-mirror-runner:latest
   github:
     secretName: github-tekton-token
-    secretKey: GH_TOKEN
+    secretKey: token
   # oc-mirror v2 (v2alpha1) — mirrors a single small image for testing; replace with full OCP release config for production.
   imageSetConfiguration: |
     kind: ImageSetConfiguration

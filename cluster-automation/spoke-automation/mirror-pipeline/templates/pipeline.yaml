@@ -132,11 +132,11 @@ spec:
               set -x
               oc-mirror version 2>/dev/null || true
               CFG=/tmp/mirror-work/imageset.yaml
-              # oc-mirror v2 (4.18+ GA): --v2 last; --max-nested-paths 1 for registries with <project>/<image> path limit
+              # oc-mirror v2 (4.18+ GA): --v2 last; pass extra-flags for registry-specific tuning (e.g. --max-nested-paths)
               if command -v oc-mirror >/dev/null 2>&1; then
-                oc-mirror -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --dest-tls-verify=false --max-nested-paths 1 --v2 ${PARAM_EXTRA_FLAGS} 2>&1 | tee "${OUT}/oc-mirror.log"
+                oc-mirror -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --dest-tls-verify=false --v2 ${PARAM_EXTRA_FLAGS} 2>&1 | tee "${OUT}/oc-mirror.log"
               elif oc mirror --help >/dev/null 2>&1; then
-                oc mirror -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --dest-tls-verify=false --max-nested-paths 1 --v2 ${PARAM_EXTRA_FLAGS} 2>&1 | tee "${OUT}/oc-mirror.log"
+                oc mirror -c "${CFG}" --workspace "file://${OUT}" "${DEST}" --dest-tls-verify=false --v2 ${PARAM_EXTRA_FLAGS} 2>&1 | tee "${OUT}/oc-mirror.log"
               else
                 echo "Neither oc-mirror binary nor 'oc mirror' plugin found in PATH" >&2
                 exit 1
