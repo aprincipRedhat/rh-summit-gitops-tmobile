@@ -1,0 +1,12 @@
+flowchart TD
+  t1[clone-repos] --> t2[merge-pipeline-values]
+  t2 --> t3[validate-replacement-marker]
+  t3 --> t4[helm-render-suppress]
+  t4 --> t5[git-mr-suppress]
+  t5 --> t6[wait-merge-suppress]
+  t6 --> t7[spoke-teardown-and-hub-cleanup]
+  t7 --> t8[discover-node-network]
+  t8 --> t9[merge-and-render-final]
+  t9 --> t10[git-mr-final]
+  t10 --> t11[wait-merge-final]
+  t11 --> t12[deploy-watch]

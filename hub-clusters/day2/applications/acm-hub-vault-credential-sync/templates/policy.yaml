@@ -1,0 +1,58 @@
+{{- if .Values.vaultHubCredentialSync.enabled }}
+{{- $sync := .Values.vaultHubCredentialSync }}
+{{- $ns := $sync.sourceSecret.namespace }}
+{{- $sec := $sync.sourceSecret.name }}
+{{- $dst := $sync.destinationSecretName }}
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: {{ $sync.policyName | quote }}
+  namespace: {{ $sync.policyNamespace | quote }}
+  annotations:
+    policy.open-cluster-management.io/hub-templates-enabled: "true"
+spec:
+  disabled: {{ $sync.policyDisabled }}
+  remediationAction: enforce
+  hubTemplateOptions:
+    serviceAccountName: {{ $sync.hubTemplateServiceAccount.name | quote }}
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: {{ $sync.configurationPolicyName | quote }}
+        spec:
+          remediationAction: enforce
+          severity: high
+{{- if or $sync.namespaceSelector.matchLabels $sync.namespaceSelector.include $sync.namespaceSelector.exclude }}
+          namespaceSelector:
+{{- with $sync.namespaceSelector.matchLabels }}
+            matchLabels:
+{{ toYaml . | nindent 14 }}
+{{- end }}
+{{- if $sync.namespaceSelector.include }}
+            include:
+{{- range $sync.namespaceSelector.include }}
+              - {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- if $sync.namespaceSelector.exclude }}
+            exclude:
+{{- range $sync.namespaceSelector.exclude }}
+              - {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: {{ $dst | quote }}
+                type: Opaque
+                stringData:
+{{- range $sync.secretKeys }}
+                  {{ . }}: '{{ printf "{{hub fromSecret \"%s\" \"%s\" \"%s\" hub}}" $ns $sec . }}'
+{{- end }}
+{{- end }}

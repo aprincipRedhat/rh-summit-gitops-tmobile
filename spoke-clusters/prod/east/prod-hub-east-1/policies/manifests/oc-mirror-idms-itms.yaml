@@ -1,0 +1,11 @@
+# Overwritten by Tekton ocp-registry-mirror promote task — bundle used by ACM Policy GitOps (see mirror-pipeline README).
+---
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: oc-mirror-placeholder-bundle
+spec:
+  imageDigestMirrors:
+    - source: registry.placeholder.example/ocp/release
+      mirrors:
+        - registry.example.com/ocp/release

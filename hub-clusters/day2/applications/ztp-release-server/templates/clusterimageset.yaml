@@ -1,0 +1,15 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- $versions := dig "ztpReleaseServer" "versions" (list) (fromJson (toJson .Values)) }}
+{{- range $versions }}
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterImageSet
+metadata:
+  name: ocp-v{{ .version }}
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    ocp-version: {{ .version | quote }}
+spec:
+  releaseImage: {{ .releaseImage | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,72 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- $ns := dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+{{- $versions := dig "ztpReleaseServer" "versions" (list) (fromJson (toJson .Values)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztp-release-downloader
+  namespace: {{ $ns }}
+data:
+  download.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    echo "=== ZTP Release Server: artifact downloader ==="
+    {{- range $versions }}
+    # --- OCP {{ .version }} ---
+    mkdir -p /data/{{ .version }}
+    if [[ ! -f "/data/{{ .version }}/live.iso" ]]; then
+      echo "Downloading CoreOS ISO for {{ .version }}..."
+      curl -fL --retry 5 --retry-delay 10 --connect-timeout 30 \
+        -o "/data/{{ .version }}/live.iso.tmp" \
+        "{{ .coreosIso }}" \
+        && mv "/data/{{ .version }}/live.iso.tmp" "/data/{{ .version }}/live.iso"
+    else
+      echo "CoreOS ISO for {{ .version }} already present, skipping."
+    fi
+    if [[ ! -f "/data/{{ .version }}/rootfs.img" ]]; then
+      echo "Downloading rootfs for {{ .version }}..."
+      curl -fL --retry 5 --retry-delay 10 --connect-timeout 30 \
+        -o "/data/{{ .version }}/rootfs.img.tmp" \
+        "{{ .rootfsImg }}" \
+        && mv "/data/{{ .version }}/rootfs.img.tmp" "/data/{{ .version }}/rootfs.img"
+    else
+      echo "rootfs for {{ .version }} already present, skipping."
+    fi
+    {{- end }}
+    echo "=== All downloads complete ==="
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztp-release-nginx-conf
+  namespace: {{ $ns }}
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        access_log    /dev/stdout combined;
+        sendfile      on;
+        keepalive_timeout 65;
+
+        server {
+            listen 8080;
+            server_name _;
+            root /data;
+            autoindex on;
+            charset utf-8;
+
+            location / {
+                try_files $uri $uri/ =404;
+            }
+        }
+    }
+{{- end }}

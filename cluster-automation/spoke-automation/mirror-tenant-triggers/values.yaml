@@ -1,0 +1,2 @@
+# EventListener / TriggerTemplate wiring defaults are in templates. Required: hub hub-env-values includes tektonMirror for git targets; enable app via managed-applications tenantMirrorTriggers.
+{}

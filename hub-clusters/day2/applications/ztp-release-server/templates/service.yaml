@@ -1,0 +1,18 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- $ns := dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztp-release-server
+  namespace: {{ $ns }}
+  labels:
+    app: ztp-release-server
+spec:
+  selector:
+    app: ztp-release-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+{{- end }}

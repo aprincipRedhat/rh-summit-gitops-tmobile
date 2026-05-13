@@ -1,0 +1,21 @@
+# kube-burner on ose-tools for ZTP post-deploy load tests. Build, push, then set tektonZtp.images.kubeBurner in hub-env-values.
+# Build: podman build -t registry.ocp.example/kube-burner-runner:latest .
+
+FROM registry.redhat.io/openshift4/ose-tools-rhel9:v4.16
+
+ARG KUBE_BURNER_VERSION=1.7.10
+
+USER 0
+
+RUN set -eux; \
+    V="V${KUBE_BURNER_VERSION}"; \
+    curl -sL "https://github.com/kube-burner/kube-burner/releases/download/v${KUBE_BURNER_VERSION}/kube-burner-${V}-linux-x86_64.tar.gz" \
+    | tar xz -C /usr/local/bin kube-burner \
+    && chmod +x /usr/local/bin/kube-burner
+
+RUN mkdir -p /home/default && chown -R 1001:0 /home/default && chmod -R g=u /home/default
+USER 1001
+WORKDIR /home/default
+ENV HOME=/home/default
+
+CMD ["/usr/local/bin/kube-burner", "version"]

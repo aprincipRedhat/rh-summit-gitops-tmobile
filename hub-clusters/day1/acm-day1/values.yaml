@@ -1,0 +1,50 @@
+mce:
+  namespace: multicluster-engine
+  operatorGroup:
+    name: default
+  subscription:
+    name: multicluster-engine
+    channel: stable-2.11
+    installPlanApproval: Automatic
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace
+
+acm:
+  namespace: open-cluster-management
+  operatorGroup:
+    name: default
+  subscription:
+    name: advanced-cluster-management
+    channel: release-2.16
+    installPlanApproval: Automatic
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace
+
+multiClusterHub:
+  enabled: true
+  name: multiclusterhub
+  spec:
+    availabilityConfig: Basic
+
+# HashiCorp Vault Secrets Operator (certified OperatorHub / certified-operators catalog)
+vaultSecretsOperator:
+  enabled: true
+  namespace: vault-secrets-operator
+  operatorGroup:
+    name: default
+  subscription:
+    name: vault-secrets-operator
+    channel: stable
+    installPlanApproval: Automatic
+    source: certified-operators
+    sourceNamespace: openshift-marketplace
+
+# Placeholder Secret for Vault API creds / secret id material — replace values before enabling ACM sync + Tekton (SealedSecret or oc replace).
+vaultBootstrap:
+  enabled: true
+  namespace: vault-secrets-operator
+  secretName: vault-bootstrap-credentials
+  stringData:
+    VAULT_ADDR: "https://vault.example.com:8200"
+    VAULT_TOKEN: "REPLACE_ME"
+    secretId: "REPLACE_ME"

@@ -1,0 +1,16 @@
+# ose-ztp-tools — extends ose-tools-rhel9 with helm for ZTP/node-replacement pipeline steps.
+# Build:  podman build -t <registry>/ose-ztp-tools:v4.20 .
+# Push:   podman push <registry>/ose-ztp-tools:v4.20
+FROM registry.redhat.io/openshift4/ose-tools-rhel9:v4.20
+
+ARG HELM_VERSION=3.17.3
+
+USER root
+
+# Install helm from the official binary tarball (Red Hat does not ship helm in ose-tools).
+RUN curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
+      | tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm \
+    && chmod +x /usr/local/bin/helm \
+    && helm version --short
+
+USER 65532

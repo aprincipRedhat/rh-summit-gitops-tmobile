@@ -1,0 +1,14 @@
+# Patch Tekton config-defaults to set HOME=/tekton/home for all TaskRun pods.
+# Prevents "unsuccessful cred copy ... mkdir /.docker: permission denied" warnings
+# that occur when ose-tools-rhel9 (HOME=/root) runs under OpenShift's restricted-v2
+# SCC with a random non-root UID that cannot write to /root.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-defaults
+  namespace: openshift-pipelines
+data:
+  default-pod-template: |
+    env:
+      - name: HOME
+        value: /tekton/home

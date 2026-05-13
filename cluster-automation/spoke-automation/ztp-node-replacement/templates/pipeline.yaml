@@ -1,0 +1,751 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ dig "tektonNodeReplacement" "pipeline" "name" "ztp-node-replacement" (fromJson (toJson .Values)) }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    Node replacement: merge pipeline values → validate replacementTarget → MR with suppressed node (omitMarkedNodes)
+    → wait merge → spoke kubeconfig (master/etcd gate) → delete node/Machine → MAC discovery → final MR → wait merge
+    → optional deploy watch. Destructive steps require execute-destructive=true.
+  params:
+    - name: cluster-name
+      type: string
+    - name: gitops-repo-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: git-base-branch
+      type: string
+      default: main
+    - name: github-repo-slug
+      type: string
+    - name: ztp-chart-relative-path
+      type: string
+      default: cluster-automation/ztp-spoke
+    - name: manifest-output-dir
+      type: string
+      description: e.g. spoke-clusters/dev/east/dev-hub-east-1/clusters
+    - name: skip-suppress-mr
+      type: string
+      default: "false"
+      description: Skip suppress-phase MR (use only if ClusterInstance already reflects suppression).
+    - name: skip-wait-merge-suppress
+      type: string
+      default: "false"
+    - name: skip-etcd-manual-gate
+      type: string
+      default: "false"
+      description: If master and true, do not pause for etcd ConfigMap (danger — complete etcd removal first).
+    - name: execute-destructive
+      type: string
+      default: "false"
+    - name: skip-mac-discovery
+      type: string
+      default: "false"
+    - name: skip-ansible
+      type: string
+      default: "false"
+    - name: ansible-tags
+      type: string
+      default: ""
+    - name: spoke-kubeconfig-secret-name
+      type: string
+      default: ""
+    - name: spoke-kubeconfig-secret-namespace
+      type: string
+      default: ""
+    - name: skip-wait-merge-final
+      type: string
+      default: "false"
+    - name: skip-deploy-watch
+      type: string
+      default: "false"
+    - name: git-user-name
+      type: string
+      default: "ZTP Node Replacement"
+    - name: git-user-email
+      type: string
+      default: "ztp-node-replacement@local"
+    - name: pr-title-suppress
+      type: string
+      default: "chore(node-replacement): suppress ClusterInstance node for BMC"
+    - name: pr-title-final
+      type: string
+      default: "feat(node-replacement): replace bare-metal node"
+  workspaces:
+    - name: shared
+      description: PVC with cloned repo, merged values, rendered manifests
+  tasks:
+    - name: clone-repos
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-revision
+          value: $(params.git-revision)
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: gitops-repo-url
+          - name: git-revision
+          - name: cluster-name
+          - name: manifest-output-dir
+        steps:
+          - name: clone-and-resolve-values
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              cd "$ROOT"
+              rm -rf src
+              git clone --depth {{ dig "tektonNodeReplacement" "git" "cloneDepth" 50 (fromJson (toJson .Values)) }} --branch "$(params.git-revision)" "$(params.gitops-repo-url)" src
+              cd src
+              CLUSTER="$(params.cluster-name)"
+              TMP=/tmp/pv-matches.$$
+              trap 'rm -f "$TMP"' EXIT INT HUP
+              find . -path './.git' -prune -o -type f -path "*/99-pipeline-values/${CLUSTER}.yaml" -print \
+                | sort > "$TMP"
+              count=$(wc -l < "$TMP" | tr -cd '0123456789')
+              if [ "$count" -eq 0 ]; then
+                echo "No pipeline values file for cluster ${CLUSTER}" >&2
+                exit 1
+              fi
+              if [ "$count" -gt 1 ]; then
+                echo "Multiple pipeline values files for ${CLUSTER}:" >&2
+                cat "$TMP" >&2
+                exit 1
+              fi
+              REL=$(head -n 1 "$TMP")
+              ABS="$(pwd)/${REL#./}"
+              echo "$ABS" > "${ROOT}/pipeline-values.path"
+              echo "Resolved pipeline values: $ABS"
+
+    - name: merge-pipeline-values
+      runAfter: [clone-repos]
+      workspaces:
+        - name: shared
+          workspace: shared
+      taskSpec:
+        workspaces:
+          - name: shared
+        steps:
+          - name: merge
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              BASE="$(cat "${ROOT}/pipeline-values.path")"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              DISC="${ROOT}/discovered-nodes.yaml"
+              SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py"
+              rm -f "${MERGED}"
+              if [ -f "$DISC" ]; then
+                python3 "$SCRIPT" "$BASE" "$DISC" "$MERGED"
+              else
+                cp "$BASE" "$MERGED"
+              fi
+              echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
+              echo "Merged values: $MERGED"
+
+    - name: validate-replacement-marker
+      runAfter: [merge-pipeline-values]
+      workspaces:
+        - name: shared
+          workspace: shared
+      taskSpec:
+        workspaces:
+          - name: shared
+        steps:
+          - name: validate
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              MERGED="$(cat "${ROOT}/merged-pipeline-values.path")"
+              SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/validate_replacement_marker.py"
+              HOST=$(python3 "$SCRIPT" "$MERGED")
+              printf '%s' "$HOST" > "${ROOT}/replacement-target-host.txt"
+              echo "replacementTarget hostName=${HOST}"
+
+    - name: helm-render-suppress
+      runAfter: [validate-replacement-marker]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: ztp-chart-relative-path
+          value: $(params.ztp-chart-relative-path)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+        - name: skip-suppress-mr
+          value: $(params.skip-suppress-mr)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: ztp-chart-relative-path
+          - name: manifest-output-dir
+          - name: skip-suppress-mr
+        steps:
+          - name: helm-suppress
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.skip-suppress-mr)" = "true" ]; then
+                echo "skip-suppress-mr=true — not rendering suppress manifests"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              cd "${ROOT}/src"
+              VALUES="$(cat "${ROOT}/merged-pipeline-values.path")"
+              OUT="$(params.manifest-output-dir)/$(params.cluster-name)"
+              mkdir -p "$OUT"
+              CHART="./$(params.ztp-chart-relative-path)"
+              printf '%s\n' "nodeReplacement:" "  omitMarkedNodes: true" > "${ROOT}/suppress-overlay.yaml"
+              helm lint "$CHART" -f "$VALUES" -f "${ROOT}/suppress-overlay.yaml"
+              helm template "$(params.cluster-name)" "$CHART" -f "$VALUES" -f "${ROOT}/suppress-overlay.yaml" \
+                > "${OUT}/manifests.yaml"
+              echo "Rendered suppress manifests to ${OUT}/manifests.yaml"
+
+    - name: git-mr-suppress
+      runAfter: [helm-render-suppress]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-base-branch
+          value: $(params.git-base-branch)
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: git-user-name
+          value: $(params.git-user-name)
+        - name: git-user-email
+          value: $(params.git-user-email)
+        - name: pr-title-suppress
+          value: $(params.pr-title-suppress)
+        - name: skip-suppress-mr
+          value: $(params.skip-suppress-mr)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: manifest-output-dir
+          - name: gitops-repo-url
+          - name: git-base-branch
+          - name: github-repo-slug
+          - name: git-user-name
+          - name: git-user-email
+          - name: pr-title-suppress
+          - name: skip-suppress-mr
+        steps:
+          - name: push-suppress-pr
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ dig "tektonNodeReplacement" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonNodeReplacement" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.skip-suppress-mr)" = "true" ]; then
+                echo "skip-suppress-mr=true — no suppress PR"
+                : > "$(workspaces.shared.path)/ztp-pr-number-suppress.txt"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              cd "${ROOT}/src"
+              git config user.name "$(params.git-user-name)"
+              git config user.email "$(params.git-user-email)"
+              BRANCH="node-replacement-suppress-$(params.cluster-name)-$(date +%s)"
+              git checkout -b "$BRANCH"
+              git add "$(params.manifest-output-dir)/$(params.cluster-name)"
+              git commit -m "chore(node-replacement): suppress ClusterInstance node (omitMarkedNodes)" || { git status; exit 1; }
+              REMOTE="$(params.gitops-repo-url)"
+              case "$REMOTE" in
+                https://github.com/*)
+                  OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
+                  git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
+                  ;;
+                *)
+                  echo "Expected https://github.com/... clone URL" >&2
+                  exit 1
+                  ;;
+              esac
+              git push -u origin "$BRANCH"
+              export GH_TOKEN
+              gh pr create \
+                --repo "$(params.github-repo-slug)" \
+                --base "$(params.git-base-branch)" \
+                --head "$BRANCH" \
+                --title "$(params.pr-title-suppress) $(params.cluster-name)" \
+                --body "Node replacement: suppress replacementTarget node in ClusterInstance (GitOps). Merge before spoke deletes." 2>&1
+              PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
+              if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
+                echo "$PR_NUM" > "${ROOT}/ztp-pr-number-suppress.txt"
+              else
+                : > "${ROOT}/ztp-pr-number-suppress.txt"
+              fi
+
+    - name: wait-merge-suppress
+      runAfter: [git-mr-suppress]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: skip-wait-merge-suppress
+          value: $(params.skip-wait-merge-suppress)
+        - name: skip-suppress-mr
+          value: $(params.skip-suppress-mr)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: github-repo-slug
+          - name: skip-wait-merge-suppress
+          - name: skip-suppress-mr
+        steps:
+          - name: poll
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ dig "tektonNodeReplacement" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonNodeReplacement" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.skip-suppress-mr)" = "true" ] || [ "$(params.skip-wait-merge-suppress)" = "true" ]; then
+                echo "Skipping wait on suppress PR"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              export GH_TOKEN
+              POLL={{ dig "tektonNodeReplacement" "waitForMerge" "pollIntervalSeconds" 30 (fromJson (toJson .Values)) }}
+              MAX_ITER=$(( {{ dig "tektonNodeReplacement" "waitForMerge" "timeoutSeconds" 7200 (fromJson (toJson .Values)) }} / POLL ))
+              PR_NUM=$(cat "${ROOT}/ztp-pr-number-suppress.txt" 2>/dev/null || echo "")
+              i=0
+              while [ "$i" -lt "$MAX_ITER" ]; do
+                if [ -n "$PR_NUM" ]; then
+                  STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
+                else
+                  echo "No suppress PR number — exiting wait" >&2
+                  exit 1
+                fi
+                echo "Suppress PR state=${STATE}"
+                if [ "$STATE" = "MERGED" ]; then exit 0; fi
+                if [ "$STATE" = "CLOSED" ]; then echo "PR closed" >&2; exit 1; fi
+                i=$((i + 1))
+                sleep "$POLL"
+              done
+              echo "Timeout waiting for suppress PR merge" >&2
+              exit 1
+
+    - name: spoke-teardown-and-hub-cleanup
+      runAfter: [wait-merge-suppress]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: execute-destructive
+          value: $(params.execute-destructive)
+        - name: skip-etcd-manual-gate
+          value: $(params.skip-etcd-manual-gate)
+        - name: spoke-kubeconfig-secret-name
+          value: $(params.spoke-kubeconfig-secret-name)
+        - name: spoke-kubeconfig-secret-namespace
+          value: $(params.spoke-kubeconfig-secret-namespace)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: execute-destructive
+          - name: skip-etcd-manual-gate
+          - name: spoke-kubeconfig-secret-name
+          - name: spoke-kubeconfig-secret-namespace
+        steps:
+          - name: spoke-delete-node-and-machine
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              ROOT="$(workspaces.shared.path)"
+              VALUES="$(cat "${ROOT}/merged-pipeline-values.path")"
+              CLUSTER="$(params.cluster-name)"
+              NODE=$(cat "${ROOT}/replacement-target-host.txt")
+              CL_NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES")
+              SEC_NS="$(params.spoke-kubeconfig-secret-namespace)"
+              if [ -z "${SEC_NS}" ]; then SEC_NS="${CL_NS}"; fi
+              SEC_NAME="$(params.spoke-kubeconfig-secret-name)"
+              if [ -z "${SEC_NAME}" ]; then SEC_NAME="${CLUSTER}-admin-kubeconfig"; fi
+              oc get secret "${SEC_NAME}" -n "${SEC_NS}" -o jsonpath='{.data.kubeconfig}' | base64 -d > "${ROOT}/spoke.kubeconfig"
+              export KUBECONFIG="${ROOT}/spoke.kubeconfig"
+              echo "Using kubeconfig Secret ${SEC_NAME}/${SEC_NS}"
+              # Master / control-plane detection
+              CP=$(oc get node "${NODE}" -o jsonpath='{.metadata.labels.node-role\.kubernetes\.io/control-plane}' 2>/dev/null || true)
+              MAST=$(oc get node "${NODE}" -o jsonpath='{.metadata.labels.node-role\.kubernetes\.io/master}' 2>/dev/null || true)
+              if [ "${CP}" = "true" ] || [ "${MAST}" = "true" ]; then
+                echo "Node ${NODE} is control-plane — etcd member removal required before delete."
+                if [ "$(params.skip-etcd-manual-gate)" != "true" ]; then
+                  CM="ztp-node-replacement-etcd-${CLUSTER}"
+                  NS=openshift-pipelines
+                  echo "Pause until etcd procedure complete + patch: oc -n ${NS} patch cm ${CM} --type merge -p '{\"data\":{\"approved\":\"true\"}}'"
+                  oc create configmap "${CM}" --from-literal=approved=false -n "${NS}" --dry-run=client -o yaml | oc apply -f -
+                  END=$(( $(date +%s) + {{ dig "tektonNodeReplacement" "etcdManualGate" "timeoutSeconds" 7200 (fromJson (toJson .Values)) }} ))
+                  while true; do
+                    NOW=$(date +%s)
+                    if [ "$NOW" -ge "$END" ]; then echo "etcd gate timeout" >&2; exit 1; fi
+                    ST=$(oc get configmap "${CM}" -n "${NS}" -o jsonpath='{.data.approved}' 2>/dev/null || echo "")
+                    if [ "$ST" = "true" ]; then echo "etcd gate cleared"; break; fi
+                    sleep 15
+                  done
+                else
+                  echo "skip-etcd-manual-gate=true — proceeding without etcd pause (ensure etcd already handled)."
+                fi
+              fi
+              if [ "$(params.execute-destructive)" != "true" ]; then
+                echo "execute-destructive!=true — skipping oc delete node / Machine / BMH"
+                exit 0
+              fi
+              echo "Deleting node ${NODE} on spoke"
+              oc delete node "${NODE}" --wait=true
+              echo "Waiting for Machine object removal (openshift-machine-api)"
+              for _ in $(seq 1 120); do
+                if ! oc get machines.machine.openshift.io -n openshift-machine-api -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' 2>/dev/null | grep -qx "${NODE}"; then
+                  echo "No Machine referencing node ${NODE}"
+                  break
+                fi
+                echo "Still waiting for Machine for node ${NODE}..."
+                sleep 10
+              done
+              export KUBECONFIG=""
+              HUB_NS="${CL_NS}"
+              echo "Deleting BareMetalHost/${NODE} on hub in ${HUB_NS} if present"
+              oc delete baremetalhost "${NODE}" -n "${HUB_NS}" --wait=true 2>/dev/null || echo "BMH delete skipped or not found"
+
+    - name: discover-node-network
+      runAfter: [spoke-teardown-and-hub-cleanup]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: skip-ansible
+          value: $(params.skip-ansible)
+        - name: ansible-tags
+          value: $(params.ansible-tags)
+        - name: skip-mac-discovery
+          value: $(params.skip-mac-discovery)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: skip-ansible
+          - name: ansible-tags
+          - name: skip-mac-discovery
+        volumes:
+          - name: ansible-preflight-bundle
+            configMap:
+              name: {{ dig "tektonNodeReplacement" "ansible" "preflightConfigMapName" "ztp-ansible-preflight" (fromJson (toJson .Values)) | quote }}
+        steps:
+          - name: ansible-mac
+            image: {{ include "tekton.ansibleEEImage" . | quote }}
+{{- if (dig "tektonNodeReplacement" "vault" "secretName" "" (fromJson (toJson .Values))) }}
+            envFrom:
+              - secretRef:
+                  name: {{ dig "tektonNodeReplacement" "vault" "secretName" "" (fromJson (toJson .Values)) | quote }}
+{{- end }}
+            volumeMounts:
+              - name: ansible-preflight-bundle
+                mountPath: /ansible-cm
+                readOnly: true
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [[ "$(params.skip-ansible)" == "true" ]]; then
+                echo "skip-ansible=true — skipping discovery"
+                exit 0
+              fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/pipeline-values.path")"
+              TAG_OVERRIDE="$(params.ansible-tags)"
+              if [[ "$(params.skip-mac-discovery)" == "true" ]]; then
+                export SKIP_MAC_DISCOVERY=true
+              else
+                export SKIP_MAC_DISCOVERY=false
+              fi
+              export MAC_DISCOVERY_OUTPUT="${ROOT}/discovered-nodes.yaml"
+              if [[ -n "${TAG_OVERRIDE// }" ]]; then
+                TAGS="${TAG_OVERRIDE}"
+              else
+                TAGS="dns"
+                TAGS="${TAGS},hardware,bmc,redfish,ping,mac-discovery"
+              fi
+              export ANSIBLE_COLLECTIONS_PATH="${ROOT}/.ansible-collections"
+              RESTORE=/tmp/ansible-preflight
+              rm -rf "$RESTORE"
+              mkdir -p "$RESTORE"
+              shopt -s nullglob
+              for keypath in /ansible-cm/*; do
+                base=$(basename "$keypath")
+                rel=${base//__//}
+                mkdir -p "$RESTORE/$(dirname "$rel")"
+                cp "$keypath" "$RESTORE/$rel"
+              done
+              REQ="$RESTORE/requirements.yml"
+              SITE="$RESTORE/site.yml"
+              ansible-galaxy collection install -r "$REQ" -p "$ANSIBLE_COLLECTIONS_PATH"
+              ansible-playbook -i "localhost," -c local "$SITE" \
+                --tags "${TAGS}" \
+                -e ansible_python_interpreter=/usr/bin/python3 \
+                -e mac_discovery_output="${MAC_DISCOVERY_OUTPUT}" \
+                -e @"${VALUES_FILE}"
+
+    - name: merge-and-render-final
+      runAfter: [discover-node-network]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: ztp-chart-relative-path
+          value: $(params.ztp-chart-relative-path)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: ztp-chart-relative-path
+          - name: manifest-output-dir
+        steps:
+          - name: merge-final
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              BASE="$(cat "${ROOT}/pipeline-values.path")"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              DISC="${ROOT}/discovered-nodes.yaml"
+              SCRIPT="${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py"
+              rm -f "${MERGED}"
+              if [ -f "$DISC" ]; then
+                python3 "$SCRIPT" "$BASE" "$DISC" "$MERGED"
+              else
+                cp "$BASE" "$MERGED"
+              fi
+              echo "$MERGED" > "${ROOT}/merged-pipeline-values.path"
+              echo "Re-merged for final render (includes discovery when present)"
+          - name: clear-replacement-marker
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              MERGED="${ROOT}/merged-pipeline-values.yaml"
+              python3 "${ROOT}/src/cluster-automation/spoke-automation/ztp-pipeline/files/scripts/strip_replacement_marker.py" "$MERGED"
+          - name: helm-final
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              cd "${ROOT}/src"
+              VALUES="$(cat "${ROOT}/merged-pipeline-values.path")"
+              OUT="$(params.manifest-output-dir)/$(params.cluster-name)"
+              mkdir -p "$OUT"
+              CHART="./$(params.ztp-chart-relative-path)"
+              helm lint "$CHART" -f "$VALUES"
+              helm template "$(params.cluster-name)" "$CHART" -f "$VALUES" > "${OUT}/manifests.yaml"
+              echo "Final manifests at ${OUT}/manifests.yaml"
+
+    - name: git-mr-final
+      runAfter: [merge-and-render-final]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: manifest-output-dir
+          value: $(params.manifest-output-dir)
+        - name: gitops-repo-url
+          value: $(params.gitops-repo-url)
+        - name: git-base-branch
+          value: $(params.git-base-branch)
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: git-user-name
+          value: $(params.git-user-name)
+        - name: git-user-email
+          value: $(params.git-user-email)
+        - name: pr-title-final
+          value: $(params.pr-title-final)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: manifest-output-dir
+          - name: gitops-repo-url
+          - name: git-base-branch
+          - name: github-repo-slug
+          - name: git-user-name
+          - name: git-user-email
+          - name: pr-title-final
+        steps:
+          - name: push-final-pr
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ dig "tektonNodeReplacement" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonNodeReplacement" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
+            script: |
+              #!/bin/sh
+              set -eu
+              ROOT="$(workspaces.shared.path)"
+              cd "${ROOT}/src"
+              git config user.name "$(params.git-user-name)"
+              git config user.email "$(params.git-user-email)"
+              BRANCH="node-replacement-final-$(params.cluster-name)-$(date +%s)"
+              git checkout -b "$BRANCH"
+              git add "$(params.manifest-output-dir)/$(params.cluster-name)"
+              git status
+              git commit -m "feat(node-replacement): refresh cluster manifests after hardware swap" || { git status; exit 1; }
+              REMOTE="$(params.gitops-repo-url)"
+              OWNER_REPO=$(echo "$REMOTE" | sed -e 's|https://github.com/||' -e 's|\.git$||')
+              git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER_REPO}.git"
+              git push -u origin "$BRANCH"
+              export GH_TOKEN
+              gh pr create \
+                --repo "$(params.github-repo-slug)" \
+                --base "$(params.git-base-branch)" \
+                --head "$BRANCH" \
+                --title "$(params.pr-title-final) $(params.cluster-name)" \
+                --body "Node replacement: merged discovery + full ClusterInstance (unsuppress provisioning)." 2>&1
+              PR_NUM=$(gh pr list --head "$BRANCH" --repo "$(params.github-repo-slug)" --json number --jq '.[0].number' 2>/dev/null || true)
+              if [ -n "${PR_NUM}" ] && [ "${PR_NUM}" != "null" ]; then
+                echo "$PR_NUM" > "${ROOT}/ztp-pr-number.txt"
+              else
+                : > "${ROOT}/ztp-pr-number.txt"
+              fi
+
+    - name: wait-merge-final
+      runAfter: [git-mr-final]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: github-repo-slug
+          value: $(params.github-repo-slug)
+        - name: skip-wait-merge-final
+          value: $(params.skip-wait-merge-final)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: github-repo-slug
+          - name: skip-wait-merge-final
+        steps:
+          - name: poll-final
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            env:
+              - name: GH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ dig "tektonNodeReplacement" "github" "secretName" "github-tekton-token" (fromJson (toJson .Values)) }}
+                    key: {{ dig "tektonNodeReplacement" "github" "secretKey" "token" (fromJson (toJson .Values)) }}
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.skip-wait-merge-final)" = "true" ]; then exit 0; fi
+              ROOT="$(workspaces.shared.path)"
+              export GH_TOKEN
+              POLL={{ dig "tektonNodeReplacement" "waitForMerge" "pollIntervalSeconds" 30 (fromJson (toJson .Values)) }}
+              MAX_ITER=$(( {{ dig "tektonNodeReplacement" "waitForMerge" "timeoutSeconds" 7200 (fromJson (toJson .Values)) }} / POLL ))
+              PR_NUM=$(cat "${ROOT}/ztp-pr-number.txt" 2>/dev/null || echo "")
+              i=0
+              while [ "$i" -lt "$MAX_ITER" ]; do
+                [ -n "$PR_NUM" ] || { echo "No final PR number" >&2; exit 1; }
+                STATE=$(gh pr view "$PR_NUM" --repo "$(params.github-repo-slug)" --json state --jq .state)
+                echo "Final PR state=${STATE}"
+                if [ "$STATE" = "MERGED" ]; then exit 0; fi
+                if [ "$STATE" = "CLOSED" ]; then exit 1; fi
+                i=$((i + 1))
+                sleep "$POLL"
+              done
+              exit 1
+
+    - name: deploy-watch
+      runAfter: [wait-merge-final]
+      workspaces:
+        - name: shared
+          workspace: shared
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: skip-deploy-watch
+          value: $(params.skip-deploy-watch)
+      taskSpec:
+        workspaces:
+          - name: shared
+        params:
+          - name: cluster-name
+          - name: skip-deploy-watch
+        steps:
+          - name: watch
+            image: {{ include "tekton.oseToolsImage" . | quote }}
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              if [ "$(params.skip-deploy-watch)" = "true" ]; then exit 0; fi
+              ROOT="$(workspaces.shared.path)"
+              VALUES_FILE="$(cat "${ROOT}/merged-pipeline-values.path")"
+              CLUSTER="$(params.cluster-name)"
+              NS=$(awk '/^cluster:/{blk=1;next} blk&&/^[^[:space:]]/{exit} blk&&/^  namespace:/{gsub(/"/,"",$2); print $2; exit}' "$VALUES_FILE")
+              POLL={{ dig "tektonNodeReplacement" "deployWatch" "pollIntervalSeconds" 30 (fromJson (toJson .Values)) }}
+              START_TS=$(date +%s)
+              MAX_SEC={{ dig "tektonNodeReplacement" "deployWatch" "timeoutSeconds" 14400 (fromJson (toJson .Values)) }}
+              while true; do
+                NOW=$(date +%s)
+                if [ $((NOW - START_TS)) -ge "$MAX_SEC" ]; then exit 1; fi
+                READY=$(oc get clusterinstance "$CLUSTER" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                echo "ClusterInstance Ready=${READY:-unknown}"
+                if [ "$READY" = "True" ]; then exit 0; fi
+                oc get baremetalhost -n "$NS" -o wide 2>/dev/null || true
+                sleep "$POLL"
+              done

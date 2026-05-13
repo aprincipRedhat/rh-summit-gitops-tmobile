@@ -1,0 +1,31 @@
+---
+- name: Redfish service root per node BMC
+  vars:
+    _nodes: "{{ nodes | default([]) }}"
+  block:
+    - name: GET Redfish service root
+      ansible.builtin.uri:
+        url: "https://{{ item.bmcAddress | regex_replace('^[^:]+://([^/]+).*', '\\1') }}/redfish/v1/"
+        method: GET
+        validate_certs: false
+        timeout: 20
+        status_code: [200, 401, 403]
+      loop: "{{ _nodes }}"
+      loop_control:
+        label: "{{ item.bmcAddress }}"
+      register: redfish_roots
+      when: _nodes | length > 0
+
+    - name: Assert Redfish endpoint responded
+      ansible.builtin.assert:
+        that:
+          - item.status is defined
+          - item.status in [200, 401, 403]
+        fail_msg: "BMC {{ item.item.bmcAddress }} did not return a Redfish service root (HTTP {{ item.status | default('n/a') }})."
+      loop: "{{ redfish_roots.results | default([]) }}"
+      when: redfish_roots is defined and redfish_roots.results is defined
+
+- name: No nodes for Redfish check
+  ansible.builtin.debug:
+    msg: "nodes[] empty — skipping Redfish BMC checks."
+  when: nodes is not defined or (nodes | length) == 0

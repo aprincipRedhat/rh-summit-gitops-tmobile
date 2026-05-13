@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ dig "tektonZtp" "ansible" "preflightConfigMapName" "ztp-ansible-preflight" (fromJson (toJson .Values)) | quote }}
+  namespace: openshift-pipelines
+  labels:
+    app.kubernetes.io/name: ztp-ansible-preflight
+    app.kubernetes.io/component: ztp-pipeline
+data:
+{{- range $path, $content := .Files.Glob "files/ansible/**" }}
+{{- if hasSuffix ".yml" $path }}
+{{- $rel := trimPrefix "files/ansible/" $path }}
+  {{ $rel | replace "/" "__" }}: |
+{{ $content | toString | nindent 4 }}
+{{- end }}
+{{- end }}

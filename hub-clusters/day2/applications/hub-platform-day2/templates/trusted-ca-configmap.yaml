@@ -1,0 +1,10 @@
+{{- if and .Values.hubPlatform.trustedCA.enabled .Values.hubPlatform.trustedCA.bundlePem }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.hubPlatform.trustedCA.name | quote }}
+  namespace: openshift-config
+data:
+  ca-bundle.crt: |
+{{ .Values.hubPlatform.trustedCA.bundlePem | nindent 4 }}
+{{- end }}

@@ -1,0 +1,5 @@
+# Generic Namespace — substitute ${NAME} (e.g. envsubst, PolicyGenerator patches).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${NAME}

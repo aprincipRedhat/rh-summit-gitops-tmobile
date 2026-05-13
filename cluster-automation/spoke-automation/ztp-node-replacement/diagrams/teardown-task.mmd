@@ -1,0 +1,7 @@
+flowchart TD
+  kc[kubeconfig_from_Secret] --> chk{control-plane_node}
+  chk -->|yes| gate[etcd_ConfigMap_gate_unless_skip]
+  chk -->|no| deln[oc_delete_node]
+  gate --> deln
+  deln --> wm[wait_Machine_unreferenced]
+  wm --> delb["oc delete BMH on hub when execute-destructive"]

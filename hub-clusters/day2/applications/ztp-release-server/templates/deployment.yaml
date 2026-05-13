@@ -1,0 +1,87 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- $ns := dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+{{- $dlImage := dig "ztpReleaseServer" "downloaderImage" "registry.redhat.io/openshift4/ose-tools-rhel9:v4.20" (fromJson (toJson .Values)) }}
+{{- $nginxImage := dig "ztpReleaseServer" "nginxImage" "registry.redhat.io/rhel9/nginx-122:latest" (fromJson (toJson .Values)) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztp-release-server
+  namespace: {{ $ns }}
+  labels:
+    app: ztp-release-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ztp-release-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: ztp-release-server
+      annotations:
+        # Force rollout when downloader script or nginx config changes
+        checksum/downloader: {{ include (print $.Template.BasePath "/configmap-downloader.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        - name: downloader
+          image: {{ $dlImage | quote }}
+          command: ["/bin/bash", "/scripts/download.sh"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: download-script
+              mountPath: /scripts
+              readOnly: true
+      containers:
+        - name: nginx
+          image: {{ $nginxImage | quote }}
+          command: ["/usr/sbin/nginx", "-g", "daemon off;"]
+          ports:
+            - containerPort: 8080
+              name: http
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ztp-release-data
+        - name: download-script
+          configMap:
+            name: ztp-release-downloader
+            defaultMode: 0755
+        - name: nginx-conf
+          configMap:
+            name: ztp-release-nginx-conf
+{{- end }}

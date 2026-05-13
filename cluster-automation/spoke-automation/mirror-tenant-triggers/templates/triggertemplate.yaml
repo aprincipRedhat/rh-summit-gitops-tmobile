@@ -1,0 +1,74 @@
+{{- if .Values.tektonMirror }}
+{{- $tm := .Values.tenantMirrorTriggers | default dict -}}
+{{- $pref := $tm.pipelineRef | default dict -}}
+{{- $mpsa := $tm.mirrorPipelineSA | default dict -}}
+{{- $gs := .Values.tektonMirror.gitSync | default dict -}}
+{{- $rbac := .Values.tektonMirror.rbac | default dict -}}
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: mirror-tenant-template
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: dest_registry
+    - name: imageset_configmap_name
+    - name: skip_git_sync
+    - name: extra_flags
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: ocp-registry-mirror-tenant-
+      spec:
+        pipelineRef:
+          name: {{ $pref.name | default "ocp-registry-mirror" }}
+        taskRunTemplate:
+          serviceAccountName: {{ $mpsa.name | default "pipeline-oc-mirror" }}
+        podTemplate:
+          securityContext:
+            fsGroup: 65532
+        params:
+          - name: dest-registry
+            value: $(tt.params.dest_registry)
+          - name: extra-flags
+            value: $(tt.params.extra_flags)
+          - name: skip-git-sync
+            value: $(tt.params.skip_git_sync)
+          - name: gitops-repo-url
+            value: {{ $gs.gitopsRepoUrl | quote }}
+          - name: git-revision
+            value: {{ $gs.gitRevision | default "main" | quote }}
+          - name: git-base-branch
+            value: {{ $gs.gitBaseBranch | default "main" | quote }}
+          - name: github-repo-slug
+            value: {{ $gs.githubRepoSlug | quote }}
+          - name: hub-values-relative-path
+            value: {{ $gs.hubValuesRelativePath | quote }}
+          - name: git-user-name
+            value: {{ $gs.gitUserName | default "oc-mirror Bot" | quote }}
+          - name: git-user-email
+            value: {{ $gs.gitUserEmail | default "oc-mirror@local" | quote }}
+          - name: pr-title
+            value: "chore(tenant): oc-mirror from EventListener"
+          - name: policy-manifest-relative-path
+            value: {{ $gs.policyManifestRelativePath | default "" | quote }}
+          - name: skip-policy-manifest-sync
+            value: {{ $gs.skipPolicyManifestSync | default "false" | quote }}
+        workspaces:
+          - name: imageset
+            configMap:
+              name: $(tt.params.imageset_configmap_name)
+          - name: registry-auth
+            secret:
+              secretName: {{ $rbac.secretName | default "mirror-registry-pullsecret" }}
+          - name: shared
+            volumeClaimTemplate:
+              metadata:
+                name: mirror-tenant-shared-pvc
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ (($tm.workspaces | default dict).sharedStorage | default "5Gi") | quote }}
+{{- end }}

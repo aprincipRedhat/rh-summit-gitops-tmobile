@@ -1,0 +1,31 @@
+---
+# Build nodeHostnames from nodeGroups (masters then workers).
+# All tasks carry tags: always so they run even when ansible-playbook is
+# invoked with --tags <specific-tags>.
+- name: Start hostname list
+  tags: always
+  ansible.builtin.set_fact:
+    _ng_hosts: []
+
+- name: Append hostnames from nodeGroups (masters then workers)
+  tags: always
+  ansible.builtin.set_fact:
+    _ng_hosts: "{{ (_ng_hosts | default([])) + [ _hn ] }}"
+  vars:
+    _hn: >-
+      {{
+        (item | string | trim)
+        if item is not mapping
+        else (
+          (item.hostName | default('') | string | trim)
+          if (item.hostName | default('') | string | trim | length) > 0
+          else (item.hostname | default('') | string | trim)
+        )
+      }}
+  loop: "{{ (nodeGroups.masters | default([])) + (nodeGroups.workers | default([])) }}"
+  when: _hn | length > 0
+
+- name: Publish nodeHostnames for downstream roles
+  tags: always
+  ansible.builtin.set_fact:
+    nodeHostnames: "{{ _ng_hosts }}"

@@ -1,0 +1,29 @@
+# Bootstrap chart values: Git repo + paths only. OpenShift GitOps Application / ApplicationSet
+# objects are always created in openshift-gitops and use AppProject "default" with destination
+# server https://kubernetes.default.svc (in-cluster).
+repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+targetRevision: main
+
+# ApplicationSet: git directory generator — one Application per subdirectory under this glob.
+# Matches spoke-clusters/<env>/<site>/<hub-cluster-name>/clusters/<spoke-cluster-name>/
+clustersPath: spoke-clusters/*/*/*/clusters
+
+rootApp:
+  name: root-day2-applications
+  # Helm chart that renders child Application CRs (hub identity in values.yaml next to Chart.yaml).
+  sourcePath: hub-clusters/day2/managed-applications
+  helmReleaseName: managed-day2-applications
+  helmValueFiles:
+    - values.yaml
+
+applicationSet:
+  # Git directory generator: one Argo CD Application per spoke under clustersPath (see templates/applicationset-spoke-cluster-manifests.yaml).
+  name: spoke-cluster-gitops-apps
+  # During node replacement, optional ignoreDifferences reduces sync churn when hub live state diverges from Git.
+  ignoreDifferences:
+    enabled: false
+    rules:
+      - group: siteconfig.open-cluster-management.io
+        kind: ClusterInstance
+        jqPathExpressions:
+          - .spec.nodes

@@ -1,0 +1,14 @@
+{{- $bulkSA := (.Values.tektonBulkZtp | default dict).serviceAccount | default dict -}}
+{{- $san := $bulkSA.name | default "pipeline-bulk-ztp-gitops" -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-managedclusters-read" $san | trunc 63 | trimSuffix "-" }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ printf "%s-managedclusters-read" $san | trunc 63 | trimSuffix "-" }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $san }}
+    namespace: openshift-pipelines

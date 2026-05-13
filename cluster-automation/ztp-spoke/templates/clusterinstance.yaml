@@ -1,0 +1,56 @@
+apiVersion: siteconfig.open-cluster-management.io/v1alpha1
+kind: ClusterInstance
+metadata:
+  name: {{ .Values.cluster.name }}
+  namespace: {{ .Values.cluster.namespace }}
+  labels:
+    cluster.open-cluster-management.io/siteconfig: {{ .Values.cluster.name | quote }}
+  {{- with .Values.extraAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterName: {{ .Values.cluster.name | quote }}
+  {{- if .Values.cluster.clusterImageSetNameRef }}
+  clusterImageSetNameRef: {{ .Values.cluster.clusterImageSetNameRef | quote }}
+  {{- end }}
+  pullSecretRef:
+    name: {{ .Values.pullSecretRef.name | quote }}
+  {{- range $k, $v := (.Values.clusterNetworking | default dict) }}
+  {{ $k }}:
+    {{- toYaml $v | nindent 4 }}
+  {{- end }}
+  {{- with .Values.extraLabels }}
+  extraLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.extraAnnotations }}
+  extraAnnotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.templateRefs }}
+  templateRefs:
+    {{- toYaml .Values.templateRefs | nindent 4 }}
+  {{- end }}
+  {{- $raw := .Values.nodes | default list }}
+  {{- $nodes := $raw }}
+  {{- if (.Values.nodeReplacement | default dict).omitMarkedNodes }}
+  {{- $filtered := list }}
+  {{- range $raw }}
+  {{- if not (.replacementTarget | default false) }}
+  {{- $filtered = append $filtered . }}
+  {{- end }}
+  {{- end }}
+  {{- $nodes = $filtered }}
+  {{- end }}
+  {{- if and $nodes (gt (len $nodes) 0) }}
+  nodes:
+  {{- range $n := $nodes }}
+  {{- $clean := omit $n "replacementTarget" "replacementPhase" "nicMapping" "nodeRole" }}
+    - {{ toYaml $clean | nindent 6 | trim }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.extraManifestsRefs }}
+  extraManifestsRefs:
+    {{- toYaml .Values.extraManifestsRefs | nindent 4 }}
+  {{- end }}

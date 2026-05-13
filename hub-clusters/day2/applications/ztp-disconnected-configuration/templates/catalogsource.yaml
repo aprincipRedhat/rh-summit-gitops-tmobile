@@ -1,0 +1,12 @@
+{{- if and .Values.ztpDisconnected.enabled (gt (len .Values.ztpDisconnected.catalogSources) 0) }}
+{{- range .Values.ztpDisconnected.catalogSources }}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: {{ .name | quote }}
+  namespace: {{ .namespace | default "openshift-marketplace" | quote }}
+spec:
+  {{- toYaml .spec | nindent 2 }}
+{{- end }}
+{{- end }}

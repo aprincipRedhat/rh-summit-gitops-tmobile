@@ -1,0 +1,20 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: summit-mirror-config
+policyDefaults:
+  namespace: policies
+  remediationAction: enforce
+  severity: medium
+  consolidateManifests: false
+  placement:
+    labelSelector:
+      matchLabels:
+        common: "true"
+policies:
+  - name: policy-mirror-idms-itms
+    disabled: false
+    remediationAction: enforce
+    severity: medium
+    manifests:
+      - path: manifests/oc-mirror-idms-itms.yaml

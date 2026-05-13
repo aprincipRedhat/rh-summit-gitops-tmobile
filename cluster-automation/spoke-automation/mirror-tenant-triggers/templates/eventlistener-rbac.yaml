@@ -1,0 +1,57 @@
+{{- if .Values.tektonMirror }}
+{{- $tm := .Values.tenantMirrorTriggers | default dict -}}
+{{- $elsa := ($tm.serviceAccount | default dict).name | default "el-mirror-tenant" -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-el-role" $elsa }}
+  namespace: openshift-pipelines
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["create", "get", "list"]
+  - apiGroups: ["triggers.tekton.dev"]
+    resources:
+      - triggers
+      - triggerbindings
+      - triggertemplates
+      - eventlisteners
+      - interceptors
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ printf "%s-el-cluster-role" $elsa }}
+rules:
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["clusterinterceptors", "clustertriggerbindings"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ printf "%s-el-binding" $elsa }}
+  namespace: openshift-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ printf "%s-el-role" $elsa }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $elsa }}
+    namespace: openshift-pipelines
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-el-cluster-binding" $elsa }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ printf "%s-el-cluster-role" $elsa }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $elsa }}
+    namespace: openshift-pipelines
+{{- end }}

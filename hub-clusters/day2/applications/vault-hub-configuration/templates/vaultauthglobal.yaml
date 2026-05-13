@@ -1,0 +1,33 @@
+{{- if and .Values.vaultHubConfiguration.enabled .Values.vaultHubConfiguration.vaultAuthGlobal.enabled }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuthGlobal
+metadata:
+  name: {{ .Values.vaultHubConfiguration.vaultAuthGlobal.name | quote }}
+  namespace: {{ .Values.vaultHubConfiguration.operatorNamespace | quote }}
+spec:
+  {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.allowedNamespaces }}
+  allowedNamespaces:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  vaultConnectionRef: {{ .Values.vaultHubConfiguration.vaultAuthGlobal.vaultConnectionRef | quote }}
+  {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.defaultVaultNamespace }}
+  defaultVaultNamespace: {{ . | quote }}
+  {{- end }}
+  defaultAuthMethod: {{ .Values.vaultHubConfiguration.vaultAuthGlobal.defaultAuthMethod | quote }}
+  {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.defaultMount }}
+  defaultMount: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.headers }}
+  headers:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.params }}
+  params:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  appRole:
+    roleId: {{ .Values.vaultHubConfiguration.vaultAuthGlobal.appRole.roleId | quote }}
+    {{- with .Values.vaultHubConfiguration.vaultAuthGlobal.appRole.mount }}
+    mount: {{ . | quote }}
+    {{- end }}
+{{- end }}

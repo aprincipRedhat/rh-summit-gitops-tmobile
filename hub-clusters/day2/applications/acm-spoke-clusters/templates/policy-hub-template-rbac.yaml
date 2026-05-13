@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: policy-hub-template-lookup
+  namespace: {{ .Values.acmSpokeClusters.policiesNamespace | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztp-common-configmaps-reader
+  namespace: {{ .Values.acmSpokeClusters.ztpCommonNamespace | quote }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: policy-hub-template-lookup-reads-ztp-common-cm
+  namespace: {{ .Values.acmSpokeClusters.ztpCommonNamespace | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ztp-common-configmaps-reader
+subjects:
+  - kind: ServiceAccount
+    name: policy-hub-template-lookup
+    namespace: {{ .Values.acmSpokeClusters.policiesNamespace | quote }}
+---
+# ClusterRole allowing the hub-template SA to read ClusterClaims and ManagedClusters
+# across all namespaces — required for fromClusterClaim() hub template function.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: policy-hub-template-lookup-cluster-reader
+rules:
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["clusterclaims", "managedclusters"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: policy-hub-template-lookup-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: policy-hub-template-lookup-cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: policy-hub-template-lookup
+    namespace: {{ .Values.acmSpokeClusters.policiesNamespace | quote }}

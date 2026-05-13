@@ -1,0 +1,23 @@
+{{- if .Values.acmPolicies.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-acm-policies-{{ .Values.hub.clusterName }}
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: {{ include "managed-apps.spokePoliciesPath" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: policies
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}

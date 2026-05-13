@@ -1,0 +1,51 @@
+# Override via hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml → vaultHubConfiguration
+
+vaultHubConfiguration:
+  enabled: true
+
+  # Namespace where VSO runs (matches Day 1 vault-secrets-operator subscription target).
+  operatorNamespace: vault-secrets-operator
+
+  vaultConnection:
+    enabled: true
+    name: vault-connection
+    address: "https://vault.example.com:8200"
+    skipTLSVerify: false
+    # tlsServerName: ""
+    # caCertSecretRef: ""
+
+  # Shared Vault address + AppRole role ID. Per-namespace material is only the AppRole Secret ID
+  # in a Secret named by vaultAuth.appRole.secretRef (key must be `id` — see VSO docs).
+  vaultAuthGlobal:
+    enabled: true
+    name: vault-auth-global
+    allowedNamespaces:
+      - "*"
+    vaultConnectionRef: vault-connection
+    defaultAuthMethod: appRole
+    defaultMount: approle
+    # defaultVaultNamespace: ""
+    # headers: {}
+    # params: {}
+    appRole:
+      roleId: "REPLACE_ME"
+      # Optional if defaultMount is set; otherwise same as defaultMount.
+      # mount: approle
+
+  # Single VaultAuth in the operator namespace; VaultStaticSecrets elsewhere use
+  # vaultAuthRef: "<operatorNamespace>/<vaultAuth.name>" (e.g. vault-secrets-operator/vault-auth).
+  vaultAuth:
+    enabled: true
+    name: vault-auth
+    allowedNamespaces:
+      - "*"
+    # --- AppRole (when vaultAuthGlobal.enabled): Secret name in EACH consumer namespace, key `id`.
+    appRole:
+      secretRef: vault-approle-secret-id
+    # mount: ""  # optional Vault auth engine mount override (defaults from VaultAuthGlobal.defaultMount)
+    # --- Kubernetes auth (only when vaultAuthGlobal.enabled: false)
+    vaultConnectionRef: vault-connection
+    kubernetes:
+      role: hub-ztp-vso
+      serviceAccount: vault-auth
+      tokenExpirationSeconds: 600

@@ -1,0 +1,2 @@
+# Defaults for bulk spawn + child PipelineRun params are in templates. Overrides: hub hub-env-values (tektonBulkZtp).
+{}

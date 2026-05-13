@@ -1,0 +1,36 @@
+{{- if and .Values.ztpDisconnected.enabled .Values.ztpDisconnected.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ztpDisconnected.configMap.name | quote }}
+  namespace: {{ .Values.ztpDisconnected.configMap.namespace | quote }}
+data:
+{{- if gt (len .Values.ztpDisconnected.imageDigestMirrorSets) 0 }}
+  ImageDigestMirrorSets.yaml: |
+{{- range .Values.ztpDisconnected.imageDigestMirrorSets }}
+---
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: {{ .name }}
+spec:
+{{ toYaml .spec | nindent 2 }}
+{{- end }}
+{{- else }}
+  ImageDigestMirrorSets.yaml: "# empty — populate via oc mirror pipeline or values\n"
+{{- end }}
+{{- if gt (len .Values.ztpDisconnected.imageTagMirrorSets) 0 }}
+  ImageTagMirrorSets.yaml: |
+{{- range .Values.ztpDisconnected.imageTagMirrorSets }}
+---
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: {{ .name }}
+spec:
+{{ toYaml .spec | nindent 2 }}
+{{- end }}
+{{- else }}
+  ImageTagMirrorSets.yaml: "# empty — populate via oc mirror pipeline or values\n"
+{{- end }}
+{{- end }}

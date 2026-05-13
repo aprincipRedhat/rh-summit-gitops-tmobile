@@ -1,0 +1,15 @@
+# Generic NetworkPolicy — substitute ${NAME}, ${NAMESPACE}, ${APP_LABEL}.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+spec:
+  podSelector:
+    matchLabels:
+      app: ${APP_LABEL}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}

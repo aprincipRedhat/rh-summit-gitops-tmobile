@@ -1,0 +1,78 @@
+# Per-hub overrides — shared defaults live in each Application chart's values.yaml
+
+operators:
+  openshiftGitOps:
+    channel: latest
+    startingCSV: openshift-gitops-operator.v1.20.3
+    approvedCSVs:
+      - openshift-gitops-operator.v1.20.3
+  openshiftPipelines:
+    channel: latest
+    startingCSV: openshift-pipelines-operator-rh.v1.22.0
+    approvedCSVs:
+      - openshift-pipelines-operator-rh.v1.22.0
+
+# Vault bootstrap Secret (ACM Day1 chart) — replace before production
+vaultBootstrap:
+  stringData:
+    VAULT_ADDR: "https://vault.example.com:8200"
+    VAULT_TOKEN: "REPLACE_ME"
+    secretId: "REPLACE_ME"
+
+tektonZtp:
+  # images.kubeBurner: set once custom-container-images/kube-burner-runner is built & pushed.
+  # Falls back to ose-tools-rhel9; run-kube-burner-tests step exits 0 without executing.
+  # images:
+  #   kubeBurner: registry.example/kube-burner-runner:latest
+  images: {}
+  vault:
+    secretName: vault-tekton-credentials
+  pipelineRun:
+    example:
+      clusterName: dev-east-us-1
+      manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
+
+tektonBulkZtp:
+  childDefaults:
+    manifestOutputDir: spoke-clusters/dev/east/dev-hub-east-1/clusters
+
+ztpReleaseServer:
+  versions:
+    - version: "4.20.21"
+      openshiftVersion: "4.20"
+      # RHCOS version string — from: oc adm release info <release-image> --image-for=rhel-coreos
+      # or from mirror.openshift.com/.../rhcos-<ver>-ostree manifest io.openshift.build.versions annotation.
+      # OCP 4.20.x uses RHEL 9.6 CoreOS; latest available ISO is 4.20.13 (version 9.6.20260112-0).
+      rhcosVersion: "9.6.20260112-0"
+      cpuArchitecture: x86_64
+      # oc-mirror v2 pushes OCP release images to <registry>/openshift/release
+      releaseImage: "image-registry.openshift-image-registry.svc:5000/openshift/release:4.20.21-x86_64"
+      coreosIso: "https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.20/4.20.13/rhcos-4.20.13-x86_64-live-iso.x86_64.iso"
+      rootfsImg: "https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.20/4.20.13/rhcos-4.20.13-x86_64-live-rootfs.x86_64.img"
+
+tektonMirror:
+  pipeline:
+    # Built from custom-container-images/oc-mirror via OpenShift BuildConfig; pushed to internal registry.
+    mirrorImage: image-registry.openshift-image-registry.svc:5000/openshift-pipelines/oc-mirror-runner:latest
+  github:
+    secretName: github-tekton-token
+    secretKey: token
+  imageSetConfiguration: |
+    kind: ImageSetConfiguration
+    apiVersion: mirror.openshift.io/v2alpha1
+    mirror:
+      platform:
+        channels:
+          - name: stable-4.20
+            type: ocp
+            minVersion: 4.20.21
+            maxVersion: 4.20.21
+      additionalImages:
+        - name: registry.redhat.io/ubi9/ubi-minimal:latest
+  gitSync:
+    gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+    gitRevision: main
+    gitBaseBranch: main
+    hubValuesRelativePath: hub-clusters/day2/hub-env-values/dev/east/dev-hub-east-1/values.yaml
+    policyManifestRelativePath: spoke-clusters/dev/east/dev-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml

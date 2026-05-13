@@ -1,0 +1,2 @@
+# Optional standalone replacement pipeline; defaults in templates. Hub overrides: tektonNodeReplacement in hub-env-values.
+{}

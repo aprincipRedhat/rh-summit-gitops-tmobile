@@ -1,0 +1,28 @@
+---
+# ICMP to BMC host extracted from each node's bmcAddress (works with redfish+http(s) URLs).
+# Strip optional :port for ICMP (ping does not accept host:port on BSD/macOS).
+- name: Derive BMC hosts from nodes[]
+  ansible.builtin.set_fact:
+    bmc_hosts: "{{ nodes | default([]) | selectattr('bmcAddress', 'defined') | map(attribute='bmcAddress') | map('regex_replace', '^[^:]+://([^/]+).*', '\\1') | map('regex_replace', '^([^\\[\\]]+):[0-9]+$', '\\1') | list }}"
+  when: nodes is defined
+
+# Avoid `ping -W` — Linux uses seconds, BSD/macOS uses milliseconds (3 ms is too tight).
+- name: Ping each BMC address
+  ansible.builtin.command: "ping -c 1 {{ item }}"
+  loop: "{{ bmc_hosts | default([]) }}"
+  changed_when: false
+  register: ping_results
+  when: bmc_hosts | default([]) | length > 0
+
+- name: Require successful ping to all BMCs
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "No ICMP reply from BMC {{ item.item }} — check L2 path / firewall."
+  loop: "{{ ping_results.results | default([]) }}"
+  when: ping_results is defined and ping_results.results is defined
+
+- name: No nodes — nothing to ping
+  ansible.builtin.debug:
+    msg: "No nodes[] in pipeline values — skipping BMC ping."
+  when: nodes is not defined or (nodes | length) == 0

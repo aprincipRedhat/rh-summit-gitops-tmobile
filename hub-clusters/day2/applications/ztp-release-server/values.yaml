@@ -1,0 +1,34 @@
+# All runtime config lives in hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml (ztpReleaseServer).
+ztpReleaseServer:
+  enabled: true
+
+  namespace: ztp-release-server
+
+  # Image used by the init container to download ISO/rootfs (needs curl)
+  downloaderImage: registry.redhat.io/openshift4/ose-tools-rhel9:v4.20
+  # nginx image — must be reachable from the hub (mirror if disconnected)
+  nginxImage: registry.redhat.io/rhel9/nginx-122:latest
+
+  storage:
+    size: 200Gi
+    storageClass: ""   # blank = cluster default
+
+  # AgentServiceConfig (singleton, name: agent) — disable if managing separately
+  agentServiceConfig:
+    enabled: true
+    databaseStorage:
+      size: 10Gi
+      storageClass: ""
+    filesystemStorage:
+      size: 100Gi
+      storageClass: ""
+
+  # List of OCP versions to host. Each entry:
+  #   version:           OCP version string used as directory name and ClusterImageSet name suffix (e.g. 4.20.21)
+  #   openshiftVersion:  Short X.Y version for AgentServiceConfig osImages (e.g. "4.20")
+  #   rhcosVersion:      Full RHCOS version string for AgentServiceConfig osImages (e.g. "420.94.202505220312-0")
+  #   cpuArchitecture:   x86_64 | aarch64
+  #   releaseImage:      Fully-qualified mirrored release image (output of oc mirror pipeline)
+  #   coreosIso:         Download URL for the RHCOS live ISO
+  #   rootfsImg:         Download URL for the RHCOS live rootfs image
+  versions: []

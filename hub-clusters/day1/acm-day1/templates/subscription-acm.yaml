@@ -1,0 +1,14 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.acm.subscription.name }}
+  namespace: {{ .Values.acm.namespace }}
+spec:
+  channel: {{ .Values.acm.subscription.channel | quote }}
+  installPlanApproval: {{ .Values.acm.subscription.installPlanApproval }}
+  name: advanced-cluster-management
+  source: {{ .Values.acm.subscription.source | quote }}
+  sourceNamespace: {{ .Values.acm.subscription.sourceNamespace | quote }}
+  {{- with .Values.acm.subscription.startingCSV }}
+  startingCSV: {{ . | quote }}
+  {{- end }}

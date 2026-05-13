@@ -1,0 +1,21 @@
+---
+# Optional entitlement endpoint — does not fail the play if OEM omits the route.
+- name: Managers collection (license / firmware discovery)
+  ansible.builtin.uri:
+    url: "https://{{ item.bmcAddress | regex_replace('^[^:]+://([^/]+).*', '\\1') }}/redfish/v1/Managers"
+    method: GET
+    validate_certs: false
+    timeout: 15
+    status_code: [200, 401, 403, 404]
+  loop: "{{ nodes | default([]) }}"
+  loop_control:
+    label: "{{ item.bmcAddress }}"
+  register: mgr_r
+  failed_when: false
+  when: nodes is defined and (nodes | length) > 0
+
+- name: Managers GET summary
+  ansible.builtin.debug:
+    msg: "BMC {{ item.item.bmcAddress }} Managers HTTP={{ item.status | default('n/a') }}"
+  loop: "{{ mgr_r.results | default([]) }}"
+  when: mgr_r is defined

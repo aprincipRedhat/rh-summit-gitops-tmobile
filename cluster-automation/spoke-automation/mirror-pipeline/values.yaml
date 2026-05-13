@@ -1,0 +1,2 @@
+# Pipeline RBAC names, defaults, and images are set in templates. Mirror image + ImageSetConfiguration: hub-clusters/day2/hub-env-values/<env>/<site>/<hub>/values.yaml (tektonMirror).
+{}

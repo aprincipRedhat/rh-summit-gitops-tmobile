@@ -1,0 +1,8 @@
+apiVersion: v2
+name: ztp-release-server
+description: >-
+  Nginx-based OCP release artifact server for disconnected ZTP.
+  Downloads CoreOS ISO and rootfs via init container, hosts via nginx.
+  Creates ClusterImageSet per version and configures AgentServiceConfig osImages.
+type: application
+version: 1.0.0

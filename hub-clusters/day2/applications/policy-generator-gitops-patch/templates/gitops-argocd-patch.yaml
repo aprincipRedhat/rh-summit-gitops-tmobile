@@ -1,0 +1,9 @@
+{{- /*
+The ArgoCD CR patch (kustomizeBuildOptions + repo.initContainers for
+PolicyGenerator, and rbac for cluster-admin access) has been consolidated into
+hub-clusters/day2/applications/hub-platform-day2/templates/argocd-rbac-patch.yaml.
+
+This file is intentionally a no-op placeholder so the chart is not empty.
+Remove this chart/Application entirely once the hub-platform-day2 ArgoCD patch
+is confirmed stable, or repurpose this chart for future policy-generator configs.
+*/ -}}

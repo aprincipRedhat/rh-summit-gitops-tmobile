@@ -1,0 +1,380 @@
+{{- $bz := .Values.tektonBulkZtp | default dict -}}
+{{- $bulk := $bz.bulk | default dict -}}
+{{- $target := $bz.target | default dict -}}
+{{- $child := $bz.childDefaults | default dict -}}
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ ($bz.pipeline | default dict).name | default "bulk-ztp-managed-clusters" }}
+  namespace: openshift-pipelines
+spec:
+  description: >-
+    List ACM ManagedClusters (oc get managedcluster), then create PipelineRuns of the ZTP OpenShift Pipelines
+    pipeline in waves of max-concurrent until each wave completes (Succeeded or Failed).
+    Supports dry-run (list targets only) and passes BO2299-style RUN_* toggles to children.
+  params:
+    - name: dry-run
+      type: string
+      default: {{ $bulk.dryRun | default "false" | quote }}
+      description: When true, print ManagedClusters that would run and exit without creating PipelineRuns.
+    - name: max-concurrent
+      type: string
+      default: {{ $bulk.maxConcurrent | default 3 | toString | quote }}
+    - name: exclude-managed-clusters
+      type: string
+      default: {{ $bulk.excludeManagedClusters | default "local-cluster" | quote }}
+    - name: managed-cluster-label-selector
+      type: string
+      default: {{ $bulk.managedClusterLabelSelector | default "" | quote }}
+    - name: target-pipeline-name
+      type: string
+      default: {{ $target.pipelineName | default "ztp-cluster-render-pr" | quote }}
+    - name: target-pipeline-namespace
+      type: string
+      default: {{ $target.pipelineNamespace | default "openshift-pipelines" | quote }}
+    - name: child-service-account-name
+      type: string
+      default: {{ $bulk.childServiceAccountName | default "pipeline-ztp-gitops" | quote }}
+    - name: child-wait-timeout-seconds
+      type: string
+      default: {{ $bulk.childWaitTimeoutSeconds | default "7200" | quote }}
+    - name: child-gitops-repo-url
+      type: string
+      default: {{ $child.gitopsRepoUrl | default "https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git" | quote }}
+    - name: child-git-revision
+      type: string
+      default: {{ $child.gitRevision | default "main" | quote }}
+    - name: child-git-base-branch
+      type: string
+      default: {{ $child.gitBaseBranch | default "main" | quote }}
+    - name: child-github-repo-slug
+      type: string
+      default: {{ $child.githubRepoSlug | default "aprincipRedhat/rh-summit-gitops-tmobile" | quote }}
+    - name: child-ztp-chart-relative-path
+      type: string
+      default: {{ $child.ztpChartRelativePath | default "cluster-automation/ztp-spoke" | quote }}
+    - name: child-manifest-output-dir
+      type: string
+      default: {{ $child.manifestOutputDir | default "" | quote }}
+    - name: child-skip-ansible
+      type: string
+      default: {{ $child.skipAnsible | default "true" | quote }}
+    - name: child-ansible-tags
+      type: string
+      default: {{ $child.ansibleTags | default "" | quote }}
+    - name: child-run-sdn-prechecks
+      type: string
+      default: {{ $child.runSdnPrechecks | default "false" | quote }}
+    - name: child-run-hardware-validation
+      type: string
+      default: {{ $child.runHardwareValidation | default "true" | quote }}
+    - name: child-run-network-connectivity-test
+      type: string
+      default: {{ $child.runNetworkConnectivityTest | default "true" | quote }}
+    - name: child-skip-manual-approval-gate
+      type: string
+      default: {{ $child.skipManualApprovalGate | default "true" | quote }}
+    - name: child-run-post-deploy-validation
+      type: string
+      default: {{ $child.runPostDeployValidation | default "false" | quote }}
+    - name: child-run-kube-burner-tests
+      type: string
+      default: {{ $child.runKubeBurnerTests | default "false" | quote }}
+    - name: child-git-user-name
+      type: string
+      default: {{ $child.gitUserName | default "ZTP OCP Pipelines" | quote }}
+    - name: child-git-user-email
+      type: string
+      default: {{ $child.gitUserEmail | default "ztp-tekton@local" | quote }}
+    - name: child-pr-title-prefix
+      type: string
+      default: {{ $child.prTitlePrefix | default "Add cluster" | quote }}
+    - name: child-pr-title-prefix-modify
+      type: string
+      default: {{ $child.prTitlePrefixModify | default "Update cluster" | quote }}
+    - name: child-skip-wait-for-merge
+      type: string
+      default: {{ $child.skipWaitForMerge | default "false" | quote }}
+    - name: child-skip-deploy-watch
+      type: string
+      default: {{ $child.skipDeployWatch | default "false" | quote }}
+  tasks:
+    - name: spawn-ztp-pipelineruns
+      taskSpec:
+        params:
+          - name: dry-run
+          - name: max-concurrent
+          - name: exclude-managed-clusters
+          - name: managed-cluster-label-selector
+          - name: target-pipeline-name
+          - name: target-pipeline-namespace
+          - name: child-service-account-name
+          - name: child-wait-timeout-seconds
+          - name: child-gitops-repo-url
+          - name: child-git-revision
+          - name: child-git-base-branch
+          - name: child-github-repo-slug
+          - name: child-ztp-chart-relative-path
+          - name: child-manifest-output-dir
+          - name: child-skip-ansible
+          - name: child-ansible-tags
+          - name: child-run-sdn-prechecks
+          - name: child-run-hardware-validation
+          - name: child-run-network-connectivity-test
+          - name: child-skip-manual-approval-gate
+          - name: child-run-post-deploy-validation
+          - name: child-run-kube-burner-tests
+          - name: child-git-user-name
+          - name: child-git-user-email
+          - name: child-pr-title-prefix
+          - name: child-pr-title-prefix-modify
+          - name: child-skip-wait-for-merge
+          - name: child-skip-deploy-watch
+        steps:
+          - name: bulk-spawn
+            image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.20"
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              NS="$(params.target-pipeline-namespace)"
+              TARGET="$(params.target-pipeline-name)"
+              MAX="$(params.max-concurrent)"
+              WAIT="$(params.child-wait-timeout-seconds)"
+              CSA="$(params.child-service-account-name)"
+              PARENT="$(context.pipelineRun.name)"
+              LABEL_SEL="$(params.managed-cluster-label-selector)"
+
+              if ! [[ "$MAX" =~ ^[1-9][0-9]*$ ]]; then
+                echo "max-concurrent must be a positive integer, got: ${MAX}" >&2
+                exit 1
+              fi
+
+              mapfile -t RAW < <(
+                if [[ -n "$LABEL_SEL" ]]; then
+                  oc get managedcluster -l "$LABEL_SEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null
+                else
+                  oc get managedcluster -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null
+                fi
+              )
+
+              declare -a CLUSTERS=()
+              IFS=',' read -ra EXCLUDES <<< "$(params.exclude-managed-clusters)"
+              for c in "${RAW[@]}"; do
+                [[ -z "$c" ]] && continue
+                skip=false
+                for e in "${EXCLUDES[@]}"; do
+                  e="${e//[[:space:]]/}"
+                  [[ -z "$e" ]] && continue
+                  if [[ "$c" == "$e" ]]; then skip=true; break; fi
+                done
+                $skip && continue
+                CLUSTERS+=("$c")
+              done
+
+              if [[ ${#CLUSTERS[@]} -eq 0 ]]; then
+                echo "No ManagedClusters after excludes / label filter — nothing to do."
+                exit 0
+              fi
+
+              echo "Bulk parent: ${PARENT}"
+              echo "Clusters (${#CLUSTERS[@]}): ${CLUSTERS[*]}"
+              echo "Wave size (max concurrent child PipelineRuns): ${MAX}"
+
+              if [[ "$(params.dry-run)" == "true" ]]; then
+                echo ""
+                echo "=== DRY RUN — would spawn PipelineRuns with params ==="
+                echo "run-sdn-prechecks=$(params.child-run-sdn-prechecks)"
+                echo "run-hardware-validation=$(params.child-run-hardware-validation)"
+                echo "run-network-connectivity-test=$(params.child-run-network-connectivity-test)"
+                echo "skip-manual-approval-gate=$(params.child-skip-manual-approval-gate)"
+                echo "run-post-deploy-validation=$(params.child-run-post-deploy-validation)"
+                echo "run-kube-burner-tests=$(params.child-run-kube-burner-tests)"
+                for c in "${CLUSTERS[@]}"; do
+                  echo "  cluster-name=${c}"
+                done
+                exit 0
+              fi
+
+              create_child() {
+                local cluster="$1"
+                local safe="${cluster//[^a-zA-Z0-9-]/-}"
+                safe="${safe:0:40}"
+                local pr_name="bztp-${safe}-${RANDOM}"
+
+                echo ">>> Creating PipelineRun ${pr_name} for ManagedCluster ${cluster}" >&2
+
+                printf '%s\n' \
+                  "apiVersion: tekton.dev/v1" \
+                  "kind: PipelineRun" \
+                  "metadata:" \
+                  "  name: ${pr_name}" \
+                  "  namespace: ${NS}" \
+                  "  labels:" \
+                  "    bulk-ztp.io/parent-run: ${PARENT}" \
+                  "    bulk-ztp.io/managed-cluster: ${cluster}" \
+                  "spec:" \
+                  "  pipelineRef:" \
+                  "    name: ${TARGET}" \
+                  "  taskRunTemplate:" \
+                  "    serviceAccountName: ${CSA}" \
+                  "  podTemplate:" \
+                  "    securityContext:" \
+                  "      fsGroup: 65532" \
+                  "  params:" \
+                  "    - name: cluster-name" \
+                  "      value: \"${cluster}\"" \
+                  "    - name: gitops-repo-url" \
+                  "      value: \"$(params.child-gitops-repo-url)\"" \
+                  "    - name: git-revision" \
+                  "      value: \"$(params.child-git-revision)\"" \
+                  "    - name: git-base-branch" \
+                  "      value: \"$(params.child-git-base-branch)\"" \
+                  "    - name: github-repo-slug" \
+                  "      value: \"$(params.child-github-repo-slug)\"" \
+                  "    - name: ztp-chart-relative-path" \
+                  "      value: \"$(params.child-ztp-chart-relative-path)\"" \
+                  "    - name: manifest-output-dir" \
+                  "      value: \"$(params.child-manifest-output-dir)\"" \
+                  "    - name: skip-ansible" \
+                  "      value: \"$(params.child-skip-ansible)\"" \
+                  "    - name: ansible-tags" \
+                  "      value: \"$(params.child-ansible-tags)\"" \
+                  "    - name: run-sdn-prechecks" \
+                  "      value: \"$(params.child-run-sdn-prechecks)\"" \
+                  "    - name: run-hardware-validation" \
+                  "      value: \"$(params.child-run-hardware-validation)\"" \
+                  "    - name: run-network-connectivity-test" \
+                  "      value: \"$(params.child-run-network-connectivity-test)\"" \
+                  "    - name: skip-manual-approval-gate" \
+                  "      value: \"$(params.child-skip-manual-approval-gate)\"" \
+                  "    - name: run-post-deploy-validation" \
+                  "      value: \"$(params.child-run-post-deploy-validation)\"" \
+                  "    - name: run-kube-burner-tests" \
+                  "      value: \"$(params.child-run-kube-burner-tests)\"" \
+                  "    - name: git-user-name" \
+                  "      value: \"$(params.child-git-user-name)\"" \
+                  "    - name: git-user-email" \
+                  "      value: \"$(params.child-git-user-email)\"" \
+                  "    - name: pr-title-prefix" \
+                  "      value: \"$(params.child-pr-title-prefix)\"" \
+                  "    - name: pr-title-prefix-modify" \
+                  "      value: \"$(params.child-pr-title-prefix-modify)\"" \
+                  "    - name: skip-wait-for-merge" \
+                  "      value: \"$(params.child-skip-wait-for-merge)\"" \
+                  "    - name: skip-deploy-watch" \
+                  "      value: \"$(params.child-skip-deploy-watch)\"" \
+                  "  workspaces:" \
+                  "    - name: shared" \
+                  "      volumeClaimTemplate:" \
+                  "        metadata:" \
+                  "          name: ztp-shared-pvc" \
+                  "        spec:" \
+                  "          accessModes: [\"ReadWriteOnce\"]" \
+                  "          resources:" \
+                  "            requests:" \
+                  "              storage: 2Gi" \
+                  | oc apply -f - >/dev/null
+
+                printf '%s\n' "$pr_name"
+              }
+
+              wait_child() {
+                local pr=$1
+                local end_ts=$(( $(date +%s) + WAIT ))
+                while true; do
+                  if (( $(date +%s) > end_ts )); then
+                    echo "Timeout waiting for ${pr}" >&2
+                    return 1
+                  fi
+                  st=$(oc get pipelinerun "$pr" -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || true)
+                  if [[ "$st" == "True" ]]; then
+                    echo "=== ${pr}: Succeeded ==="
+                    return 0
+                  fi
+                  if [[ "$st" == "False" ]]; then
+                    echo "=== ${pr}: Failed (Succeeded=False) ===" >&2
+                    oc get pipelinerun "$pr" -n "$NS" -o yaml | tail -80 >&2 || true
+                    return 1
+                  fi
+                  sleep 20
+                done
+              }
+
+              idx=0
+              total=${#CLUSTERS[@]}
+              while (( idx < total )); do
+                declare -a wave_prs=()
+                for ((w=0; w<MAX && idx<total; w++, idx++)); do
+                  c="${CLUSTERS[$idx]}"
+                  pr=$(create_child "$c")
+                  wave_prs+=("$pr")
+                done
+                echo "--- Waiting for wave (${#wave_prs[@]} runs) ---"
+                failed=false
+                for pr in "${wave_prs[@]}"; do
+                  wait_child "$pr" || failed=true
+                done
+                if $failed; then
+                  echo "One or more child PipelineRuns failed — stopping bulk pipeline." >&2
+                  exit 1
+                fi
+              done
+
+              echo "All ${total} child PipelineRuns completed successfully."
+      params:
+        - name: dry-run
+          value: $(params.dry-run)
+        - name: max-concurrent
+          value: $(params.max-concurrent)
+        - name: exclude-managed-clusters
+          value: $(params.exclude-managed-clusters)
+        - name: managed-cluster-label-selector
+          value: $(params.managed-cluster-label-selector)
+        - name: target-pipeline-name
+          value: $(params.target-pipeline-name)
+        - name: target-pipeline-namespace
+          value: $(params.target-pipeline-namespace)
+        - name: child-service-account-name
+          value: $(params.child-service-account-name)
+        - name: child-wait-timeout-seconds
+          value: $(params.child-wait-timeout-seconds)
+        - name: child-gitops-repo-url
+          value: $(params.child-gitops-repo-url)
+        - name: child-git-revision
+          value: $(params.child-git-revision)
+        - name: child-git-base-branch
+          value: $(params.child-git-base-branch)
+        - name: child-github-repo-slug
+          value: $(params.child-github-repo-slug)
+        - name: child-ztp-chart-relative-path
+          value: $(params.child-ztp-chart-relative-path)
+        - name: child-manifest-output-dir
+          value: $(params.child-manifest-output-dir)
+        - name: child-skip-ansible
+          value: $(params.child-skip-ansible)
+        - name: child-ansible-tags
+          value: $(params.child-ansible-tags)
+        - name: child-run-sdn-prechecks
+          value: $(params.child-run-sdn-prechecks)
+        - name: child-run-hardware-validation
+          value: $(params.child-run-hardware-validation)
+        - name: child-run-network-connectivity-test
+          value: $(params.child-run-network-connectivity-test)
+        - name: child-skip-manual-approval-gate
+          value: $(params.child-skip-manual-approval-gate)
+        - name: child-run-post-deploy-validation
+          value: $(params.child-run-post-deploy-validation)
+        - name: child-run-kube-burner-tests
+          value: $(params.child-run-kube-burner-tests)
+        - name: child-git-user-name
+          value: $(params.child-git-user-name)
+        - name: child-git-user-email
+          value: $(params.child-git-user-email)
+        - name: child-pr-title-prefix
+          value: $(params.child-pr-title-prefix)
+        - name: child-pr-title-prefix-modify
+          value: $(params.child-pr-title-prefix-modify)
+        - name: child-skip-wait-for-merge
+          value: $(params.child-skip-wait-for-merge)
+        - name: child-skip-deploy-watch
+          value: $(params.child-skip-deploy-watch)

@@ -1,0 +1,42 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- if dig "ztpReleaseServer" "agentServiceConfig" "enabled" true (fromJson (toJson .Values)) }}
+{{- $ns := dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+{{- $versions := dig "ztpReleaseServer" "versions" (list) (fromJson (toJson .Values)) }}
+{{- $dbSc := dig "ztpReleaseServer" "agentServiceConfig" "databaseStorage" "storageClass" "" (fromJson (toJson .Values)) }}
+{{- $fsSc := dig "ztpReleaseServer" "agentServiceConfig" "filesystemStorage" "storageClass" "" (fromJson (toJson .Values)) }}
+# AgentServiceConfig is a cluster-singleton (name must be "agent").
+# Uses ServerSideApply so it can coexist with MCE operator ownership.
+apiVersion: agent-install.openshift.io/v1beta1
+kind: AgentServiceConfig
+metadata:
+  name: agent
+spec:
+  databaseStorage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: {{ dig "ztpReleaseServer" "agentServiceConfig" "databaseStorage" "size" "10Gi" (fromJson (toJson .Values)) }}
+    {{- if $dbSc }}
+    storageClassName: {{ $dbSc }}
+    {{- end }}
+  filesystemStorage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: {{ dig "ztpReleaseServer" "agentServiceConfig" "filesystemStorage" "size" "100Gi" (fromJson (toJson .Values)) }}
+    {{- if $fsSc }}
+    storageClassName: {{ $fsSc }}
+    {{- end }}
+  osImages:
+    {{- range $versions }}
+    - openshiftVersion: {{ .openshiftVersion | quote }}
+      version: {{ .rhcosVersion | quote }}
+      cpuArchitecture: {{ .cpuArchitecture | default "x86_64" | quote }}
+      # ISO and rootfs URLs point to the nginx server running in-cluster
+      url: "http://ztp-release-server.{{ $ns }}.svc/{{ .version }}/live.iso"
+      rootFSUrl: "http://ztp-release-server.{{ $ns }}.svc/{{ .version }}/rootfs.img"
+    {{- end }}
+{{- end }}
+{{- end }}

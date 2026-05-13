@@ -1,0 +1,42 @@
+{{- /*
+Single consolidated patch for the openshift-gitops ArgoCD instance.
+Manages two concerns via server-side apply (one field manager per sync):
+  1. RBAC: grants system:cluster-admins role:admin in the ArgoCD UI.
+  2. PolicyGenerator plugin: installs the ACM PolicyGenerator kustomize plugin
+     into the argocd-repo-server so Policies can be rendered from spoke-clusters/.
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  rbac:
+    defaultPolicy: role:readonly
+    policy: |
+      g, system:cluster-admins, role:admin
+    scopes: '[groups]'
+  kustomizeBuildOptions: --enable-alpha-plugins --load-restrictor LoadRestrictionsNone
+  repo:
+    env:
+      - name: KUSTOMIZE_PLUGIN_HOME
+        value: /etc/kustomize/plugin
+      - name: POLICY_GEN_DISABLE_LOAD_RESTRICTORS
+        value: "true"
+    initContainers:
+      - name: policy-generator-install
+        image: {{ .Values.hubPlatform.policyGeneratorImage | quote }}
+        command:
+          - /bin/bash
+        args:
+          - -c
+          - cp /policy-generator/PolicyGenerator-not-fips-compliant /policy-generator-tmp/PolicyGenerator
+        volumeMounts:
+          - name: policy-generator
+            mountPath: /policy-generator-tmp
+    volumeMounts:
+      - name: policy-generator
+        mountPath: /etc/kustomize/plugin/policy.open-cluster-management.io/v1/policygenerator
+    volumes:
+      - name: policy-generator
+        emptyDir: {}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: policy-generator-gitops-patch
+description: OpenShift GitOps ArgoCD repo-server patch for ACM PolicyGenerator Kustomize plugin
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,34 @@
+# Hub identity for this GitOps repo clone — drives child Applications' helm.valueFiles into
+# hub-clusters/day2/hub-env-values/<environment>/<site>/<clusterName>/values.yaml and ACM policies path.
+# Keep repoURL/targetRevision aligned with hub-clusters/day2/app-of-apps/values.yaml when bootstrapping.
+repoURL: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+targetRevision: main
+
+hub:
+  environment: dev
+  site: east
+  clusterName: dev-hub-east-1
+
+acmPolicies:
+  enabled: true
+
+# Tekton Triggers EventListener for tenant-driven oc-mirror (requires OpenShift Pipelines + Triggers)
+tenantMirrorTriggers:
+  enabled: true
+
+# Vault Secrets Operator connection/auth Application
+vaultHubConfiguration:
+  enabled: true
+
+# Hub-local ACM Policy: replicate openshift-config Vault bootstrap Secret into labeled namespaces
+vaultHubCredentialSync:
+  enabled: true
+
+tektonNodeReplacement:
+  enabled: true
+
+acmDay1:
+  enabled: true
+
+ztpReleaseServer:
+  enabled: true

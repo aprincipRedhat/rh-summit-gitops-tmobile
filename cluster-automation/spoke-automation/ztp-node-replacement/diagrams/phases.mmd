@@ -1,0 +1,37 @@
+flowchart LR
+  subgraph phase1 [Phase1_HubGit]
+    A[Mark_replacementTarget_in_values]
+    B[Optional_ignoreDifferences_on_AppSet]
+    C[MR_omitMarkedNodes_manifests]
+  end
+  subgraph phase2 [Phase2_Spoke]
+    D[Spoke_kubeconfig]
+    E{Control_plane_node}
+    F[Etcd_manual_gate_ConfigMap]
+    G[Delete_Node_wait_Machine]
+    H[Delete_BMH_on_hub]
+  end
+  subgraph phase3 [Phase3_Regenerate]
+    I[Ansible_MAC_discovery]
+    J[Merge_strip_marker_helm_template]
+    K[Final_MR_manifests]
+  end
+  subgraph phase4 [Phase4_Sync]
+    L[Merged_PR_to_main]
+    M[Argo_sync_full_ClusterInstance]
+    N[Optional_deploy_watch]
+  end
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  E -->|yes| F
+  E -->|no| G
+  F --> G
+  G --> H
+  H --> I
+  I --> J
+  J --> K
+  K --> L
+  L --> M
+  M --> N

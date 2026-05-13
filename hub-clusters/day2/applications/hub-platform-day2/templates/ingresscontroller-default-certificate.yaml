@@ -1,0 +1,10 @@
+{{- if and .Values.hubPlatform.ingressController.enabled .Values.hubPlatform.ingressController.defaultCertificate.secretName }}
+apiVersion: operator.openshift.io/v1
+kind: IngressController
+metadata:
+  name: {{ .Values.hubPlatform.ingressController.name | default "default" }}
+  namespace: openshift-ingress-operator
+spec:
+  defaultCertificate:
+    name: {{ .Values.hubPlatform.ingressController.defaultCertificate.secretName | quote }}
+{{- end }}

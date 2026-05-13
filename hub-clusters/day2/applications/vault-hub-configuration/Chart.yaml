@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vault-hub-configuration
+description: Vault Secrets Operator connection/auth defaults on the hub (VaultConnection, VaultAuth)
+type: application
+version: 0.1.0

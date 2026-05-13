@@ -1,0 +1,16 @@
+# Example output from Tekton Ansible MAC discovery — merge before local helm template:
+#   python3 cluster-automation/spoke-automation/ztp-pipeline/files/scripts/merge_pipeline_values.py \
+#     dev-east-us-1.yaml discovered-nodes.example.yaml /tmp/merged.yaml
+#   helm template dev-east-us-1 ../../../../cluster-automation/ztp-spoke -f /tmp/merged.yaml
+nodes:
+  - hostname: master-0
+    role: master
+    nodeNetwork:
+      interfaces:
+        - name: eno1
+          macAddress: "aa:bb:cc:dd:ee:01"
+    rootDeviceHints:
+      deviceName: /dev/disk/by-id/scsi-0000
+    bmcAddress: redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1
+    bmcCredentialsName:
+      name: bmc-dev-east-us-1-master-0

@@ -1,0 +1,10 @@
+{{- if dig "tektonMirror" "imageSetConfiguration" "" (fromJson (toJson .Values)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ dig "tektonMirror" "rbac" "configMapName" "mirror-imageset-configuration" (fromJson (toJson .Values)) }}
+  namespace: openshift-pipelines
+data:
+  {{ dig "tektonMirror" "imagesetConfigMapKey" "ImageSetConfiguration.yaml" (fromJson (toJson .Values)) }}: |
+{{ dig "tektonMirror" "imageSetConfiguration" "" (fromJson (toJson .Values)) | nindent 4 }}
+{{- end }}

@@ -1,0 +1,116 @@
+---
+- name: Skip mac discovery when SKIP_MAC_DISCOVERY=true
+  ansible.builtin.meta: end_play
+  when: lookup('env', 'SKIP_MAC_DISCOVERY') | default('false') | lower == 'true'
+
+- name: Skip when pipeline values already contain MACs on nodes
+  ansible.builtin.meta: end_play
+  when:
+    - nodes is defined
+    - nodes | length > 0
+    - (nodes[0].nodeNetwork.interfaces[0].macAddress | default('')) | length > 0
+
+- name: Skip when no hostname-only inventory
+  ansible.builtin.meta: end_play
+  when: nodeHostnames is not defined or (nodeHostnames | length) == 0
+
+- name: Resolve Vault connection and output path
+  ansible.builtin.set_fact:
+    _vault_addr: "{{ lookup('env', 'VAULT_ADDR') | default('', true) }}"
+    _vault_token: "{{ lookup('env', 'VAULT_TOKEN') | default('', true) }}"
+    _out_path: "{{ mac_discovery_output | default(lookup('env', 'MAC_DISCOVERY_OUTPUT') | default('/tmp/discovered-nodes.yaml', true)) }}"
+
+- name: Fail fast when Vault is not configured for discovery
+  ansible.builtin.fail:
+    msg: >-
+      Hostname-only inventory requires VAULT_ADDR and VAULT_TOKEN for BMC credential lookup
+      before Redfish MAC discovery can run.
+  when: _vault_addr | length == 0 or _vault_token | length == 0
+
+- name: Build BMC URL map from bmcAddressTemplate
+  ansible.builtin.set_fact:
+    _bmc_map: "{{ _bmc_map | default({}) | combine({ item: (bmcAddressTemplate | replace('{hostname}', item) | replace('%s', item)) }) }}"
+  loop: "{{ nodeHostnames }}"
+
+- name: Flatten master hostnames from nodeGroups
+  ansible.builtin.set_fact:
+    _master_hosts: >-
+      {{
+        nodeGroups.masters | default([])
+        | map('extract', {'hostName': '', 'hostname': ''})
+        | map('default', '')
+        | list
+      }}
+
+- name: Resolve master hostnames (string or dict)
+  ansible.builtin.set_fact:
+    _master_hosts: >-
+      {{
+        nodeGroups.masters | default([])
+        | map('regex_replace', '^(.*)$', '\1')
+        | map('string') | map('trim') | list
+      }}
+  when: nodeGroups.masters | default([]) | length > 0 and nodeGroups.masters[0] is string
+
+- name: Resolve master hostnames from dict items
+  ansible.builtin.set_fact:
+    _master_hosts: >-
+      {{
+        nodeGroups.masters | default([])
+        | map(attribute='hostName') | map('default', '')
+        | map('string') | map('trim') | list
+      }}
+  when: nodeGroups.masters | default([]) | length > 0 and nodeGroups.masters[0] is mapping
+
+- name: Resolve worker hostnames (string)
+  ansible.builtin.set_fact:
+    _worker_hosts: >-
+      {{
+        nodeGroups.workers | default([])
+        | map('string') | map('trim') | list
+      }}
+  when: nodeGroups.workers | default([]) | length == 0 or nodeGroups.workers[0] is string
+
+- name: Resolve worker hostnames from dict items
+  ansible.builtin.set_fact:
+    _worker_hosts: >-
+      {{
+        nodeGroups.workers | default([])
+        | map(attribute='hostName') | map('default', '')
+        | map('string') | map('trim') | list
+      }}
+  when: nodeGroups.workers | default([]) | length > 0 and nodeGroups.workers[0] is mapping
+
+- name: Reset discovered nodes accumulator
+  ansible.builtin.set_fact:
+    _discovered_nodes: []
+
+- name: Discover MAC addresses for master nodes
+  ansible.builtin.include_tasks: discover_one.yml
+  vars:
+    _hostname: "{{ item }}"
+    _node_role: master
+    _node_index: "{{ idx }}"
+    _nic_map: "{{ nicMappings.masters[0] | default({'logicalName': 'eno1', 'redfishMemberMatch': 'Embedded'}) }}"
+    _machine_cidr: "{{ clusterNetworking.machineNetwork[0].cidr | default('192.168.20.0/24') }}"
+  loop: "{{ _master_hosts | default([]) }}"
+  loop_control:
+    index_var: idx
+
+- name: Discover MAC addresses for worker nodes
+  ansible.builtin.include_tasks: discover_one.yml
+  vars:
+    _hostname: "{{ item }}"
+    _node_role: worker
+    _node_index: "{{ (_master_hosts | default([]) | length) + idx }}"
+    _nic_map: "{{ nicMappings.workers[0] | default({'logicalName': 'eno1', 'redfishMemberMatch': 'NIC.1'}) }}"
+    _machine_cidr: "{{ clusterNetworking.machineNetwork[0].cidr | default('192.168.20.0/24') }}"
+  loop: "{{ _worker_hosts | default([]) }}"
+  loop_control:
+    index_var: idx
+
+- name: Write discovered nodes fragment for Tekton merge
+  ansible.builtin.copy:
+    dest: "{{ _out_path }}"
+    mode: "0644"
+    content: "{{ {'nodes': _discovered_nodes} | to_nice_yaml }}"

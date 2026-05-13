@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-hub-platform-day2
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: hub-clusters/day2/applications/hub-platform-day2
+    helm:
+      releaseName: hub-platform-day2
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromDay2App" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-config
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: ArgoCD
+      jqPathExpressions:
+        - .spec.repo.resources
+        - .spec.repo.initContainers[].resources
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

@@ -1,0 +1,57 @@
+# Per-hub overrides — shared defaults live in each Application chart's values.yaml
+
+operators:
+  openshiftGitOps:
+    channel: stable
+    startingCSV: openshift-gitops-operator.v1.15.0
+    approvedCSVs:
+      - openshift-gitops-operator.v1.15.0
+  openshiftPipelines:
+    channel: latest
+    startingCSV: openshift-pipelines-operator.v1.15.2
+    approvedCSVs:
+      - openshift-pipelines-operator.v1.15.2
+
+vaultBootstrap:
+  stringData:
+    VAULT_ADDR: "https://vault.example.com:8200"
+    VAULT_TOKEN: "REPLACE_ME"
+    secretId: "REPLACE_ME"
+
+tektonZtp:
+  images:
+    # Build custom-container-images/kube-burner-runner; replace registry host with your mirror.
+    kubeBurner: registry.ocp.example/kube-burner-runner:latest
+  pipelineRun:
+    example:
+      clusterName: prod-east-us-1
+      manifestOutputDir: spoke-clusters/prod/east/prod-hub-east-1/clusters
+
+tektonBulkZtp:
+  childDefaults:
+    manifestOutputDir: spoke-clusters/prod/east/prod-hub-east-1/clusters
+
+tektonMirror:
+  pipeline:
+    mirrorImage: registry.ocp.example/oc-mirror-runner:latest
+  imageSetConfiguration: |
+    kind: ImageSetConfiguration
+    apiVersion: mirror.openshift.io/v1alpha2
+    storageConfig:
+      registry:
+        imageURL: placeholder.example/oc-mirror-metadata
+        skipTLS: true
+    mirror:
+      platform:
+        architectures:
+          - amd64
+        channels:
+          - name: stable-4.16
+            type: ocp
+            minVersion: 4.16.0
+            maxVersion: 4.16.0
+  gitSync:
+    gitopsRepoUrl: https://github.com/aprincipRedhat/rh-summit-gitops-tmobile.git
+    githubRepoSlug: aprincipRedhat/rh-summit-gitops-tmobile
+    hubValuesRelativePath: hub-clusters/day2/hub-env-values/prod/east/prod-hub-east-1/values.yaml
+    policyManifestRelativePath: spoke-clusters/prod/east/prod-hub-east-1/policies/manifests/oc-mirror-idms-itms.yaml

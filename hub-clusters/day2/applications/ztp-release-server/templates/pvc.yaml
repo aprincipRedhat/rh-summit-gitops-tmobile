@@ -1,0 +1,18 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+{{- $ns := dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+{{- $sc := dig "ztpReleaseServer" "storage" "storageClass" "" (fromJson (toJson .Values)) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ztp-release-data
+  namespace: {{ $ns }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ dig "ztpReleaseServer" "storage" "size" "200Gi" (fromJson (toJson .Values)) }}
+  {{- if $sc }}
+  storageClassName: {{ $sc }}
+  {{- end }}
+{{- end }}

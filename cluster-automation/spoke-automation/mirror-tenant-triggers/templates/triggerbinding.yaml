@@ -1,0 +1,17 @@
+{{- if .Values.tektonMirror }}
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: mirror-tenant-binding
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: dest_registry
+      value: $(body.destRegistry)
+    - name: imageset_configmap_name
+      value: $(body.imagesetConfigMap)
+    - name: skip_git_sync
+      value: $(body.skipGitSync)
+    - name: extra_flags
+      value: $(body.extraFlags)
+{{- end }}

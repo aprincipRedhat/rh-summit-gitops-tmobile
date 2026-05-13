@@ -1,0 +1,23 @@
+{{- if not .Values.ztpDisconnected.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: summit-ztp-disconnected-configuration-gitops-metadata
+  namespace: openshift-config
+data:
+  chart: ztp-disconnected-configuration
+  note: >-
+    Enable ztpDisconnected.enabled and set operatorHub, imageDigestMirrorSets / imageTagMirrorSets (for the mirror
+    ConfigMap), and catalogSources from oc mirror output for disconnected OLM.
+{{- else if and .Values.ztpDisconnected.enabled (eq (len .Values.ztpDisconnected.imageDigestMirrorSets) 0) (eq (len .Values.ztpDisconnected.imageTagMirrorSets) 0) (eq (len .Values.ztpDisconnected.catalogSources) 0) (not .Values.ztpDisconnected.operatorHub.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: summit-ztp-disconnected-configuration-gitops-metadata
+  namespace: openshift-config
+data:
+  chart: ztp-disconnected-configuration
+  note: >-
+    ztpDisconnected.enabled is true but no mirror lists, catalogSources, or operatorHub are configured —
+    populate IDMS/ITMS values for the ConfigMap (when enabled), add catalogSources, or set operatorHub.enabled.
+{{- end }}

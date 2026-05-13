@@ -1,0 +1,34 @@
+{{- if .Values.ztpReleaseServer.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-ztp-release-server
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: hub-clusters/day2/applications/ztp-release-server
+    helm:
+      releaseName: ztp-release-server
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromDay2App" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ztp-release-server
+  ignoreDifferences:
+    # AgentServiceConfig is owned by MCE operator; ignore fields it manages
+    - group: agent-install.openshift.io
+      kind: AgentServiceConfig
+      jsonPointers:
+        - /metadata/annotations
+        - /status
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}

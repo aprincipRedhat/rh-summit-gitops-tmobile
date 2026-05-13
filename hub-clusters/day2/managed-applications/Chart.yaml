@@ -1,0 +1,6 @@
+apiVersion: v2
+name: managed-applications
+description: OpenShift GitOps Application CRs for hub Day 2 (hub identity drives hub-env-values paths)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

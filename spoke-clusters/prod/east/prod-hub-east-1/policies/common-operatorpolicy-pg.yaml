@@ -1,0 +1,63 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: summit-common-operatorpolicy
+policyDefaults:
+  namespace: policies
+  remediationAction: inform
+  severity: medium
+  consolidateManifests: false
+  hubTemplateOptions:
+    serviceAccountName: policy-hub-template-lookup
+  placement:
+    labelSelector:
+      matchLabels:
+        common: "true"
+policies:
+  - name: policy-olm-gitops-and-nmstate
+    disabled: false
+    remediationAction: enforce
+    severity: high
+    manifests:
+      # Per-cluster pins: hub ConfigMap <cluster>-unique-config in ztp-common (Helm from 99-pipeline-values operators:).
+      - path: source-crs/generic-operatorpolicy.yaml
+        patches:
+          - apiVersion: policy.open-cluster-management.io/v1beta1
+            kind: OperatorPolicy
+            metadata:
+              name: policy-openshift-gitops-operator
+              namespace: openshift-operators
+            spec:
+              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.upgradeApproval" hub}}'
+              subscription:
+                name: openshift-gitops-operator
+                namespace: openshift-operators
+                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.channel" hub}}'
+                source: redhat-operators
+                sourceNamespace: openshift-marketplace
+                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.startingCSV" hub}}'
+              versions:
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.openshift-gitops-operator.startingCSV" hub}}'
+      - path: source-crs/generic-operatorpolicy.yaml
+        patches:
+          - apiVersion: policy.open-cluster-management.io/v1beta1
+            kind: OperatorPolicy
+            metadata:
+              name: policy-kubernetes-nmstate-operator
+              namespace: openshift-nmstate
+            spec:
+              upgradeApproval: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.upgradeApproval" hub}}'
+              operatorGroup:
+                name: openshift-nmstate
+                namespace: openshift-nmstate
+                targetNamespaces:
+                  - openshift-nmstate
+              subscription:
+                name: kubernetes-nmstate-operator
+                namespace: openshift-nmstate
+                channel: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.channel" hub}}'
+                source: redhat-operators
+                sourceNamespace: openshift-marketplace
+                startingCSV: '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'
+              versions:
+                - '{{hub fromConfigMap "ztp-common" (printf "%s-unique-config" .ManagedClusterName) "operator.kubernetes-nmstate-operator.startingCSV" hub}}'

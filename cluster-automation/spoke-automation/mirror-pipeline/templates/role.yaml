@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-role" (dig "tektonMirror" "serviceAccount" "name" "pipeline-oc-mirror" (fromJson (toJson .Values))) }}
+  namespace: openshift-pipelines
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ dig "tektonMirror" "rbac" "configMapName" "mirror-imageset-configuration" (fromJson (toJson .Values)) | quote }}]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - {{ dig "tektonMirror" "rbac" "secretName" "mirror-registry-pullsecret" (fromJson (toJson .Values)) | quote }}
+      - {{ dig "tektonMirror" "github" "secretName" "gitops-github-token" (fromJson (toJson .Values)) | quote }}
+    verbs: ["get", "list", "watch"]

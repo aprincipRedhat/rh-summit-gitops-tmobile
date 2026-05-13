@@ -1,0 +1,32 @@
+---
+# Expects cluster.name from pipeline values; optional baseDomain or base_domain for API DNS.
+- name: Effective base domain from pipeline values
+  ansible.builtin.set_fact:
+    _base_domain: "{{ baseDomain | default(base_domain | default('', true), true) }}"
+
+- name: Build API FQDN for forward lookup
+  ansible.builtin.set_fact:
+    _api_fqdn: "{{ 'api.' ~ cluster.name ~ '.' ~ _base_domain }}"
+  when:
+    - cluster is defined
+    - cluster.name is defined
+    - _base_domain | length > 0
+
+- name: Forward DNS lookup for API record
+  when: _api_fqdn is defined
+  block:
+    - name: Resolve API FQDN with getent
+      ansible.builtin.command: "getent ahosts {{ _api_fqdn }}"
+      register: dns_api
+      changed_when: false
+
+    - name: Fail if API name does not resolve
+      ansible.builtin.assert:
+        that:
+          - dns_api.rc == 0
+        fail_msg: "DNS forward lookup failed for {{ _api_fqdn }} — fix DNS or remove dns from ansible-tags until records exist."
+
+- name: Skip DNS when base domain not set
+  ansible.builtin.debug:
+    msg: "Skipping API DNS check — set baseDomain (or base_domain) in 99-pipeline-values/<cluster>.yaml to enforce forward lookup."
+  when: _base_domain | length == 0

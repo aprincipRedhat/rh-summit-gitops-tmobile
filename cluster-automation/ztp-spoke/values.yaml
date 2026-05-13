@@ -1,0 +1,82 @@
+# Defaults — overrides via spoke-clusters/.../99-pipeline-values/<cluster>.yaml
+cluster:
+  name: ""
+  namespace: ""
+  # References a ClusterImageSet (e.g. ocp-v4.20.21 created by ztp-release-server).
+  clusterImageSetNameRef: ""
+
+pullSecretRef:
+  name: pull-secret
+
+# Explicit ClusterInstance spec fragments (OpenShift / Assisted install shape — align with your ACM version).
+# Keys rendered as siblings under spec (machineNetwork, clusterNetwork, serviceNetwork, etc.).
+clusterNetworking: {}
+
+# Optional split inventory (masters vs workers). Tekton expand_node_inventory.py merges into nodes[] before helm.
+nodeGroups:
+  masters: []
+  workers: []
+
+workerClusterDefaults: {}
+
+# Legacy flat hostname list (MAC/BMC secret refs filled by pipeline discovery merge).
+nodeHostnames: []
+
+# Full ClusterInstance node entries — set by discovery merge, expand_node_inventory, or define statically (legacy) in Git.
+# Mark exactly one node undergoing replacement with replacementTarget: true (Helm strips this key from rendered YAML).
+nodes: []
+
+# Node replacement (Tekton): omitMarkedNodes removes replacementTarget nodes from ClusterInstance.spec.nodes in rendered manifests.
+nodeReplacement:
+  omitMarkedNodes: false
+
+# When vault.enabled, Helm emits VaultStaticSecret CRs. Use a namespaced VaultAuth ref so one
+# hub-scoped VaultAuth (see vault-hub-configuration) can serve all spokes: "<vso-ns>/<vault-auth-name>".
+vault:
+  enabled: true
+  mount: kv-v2
+  vaultAuthRef: vault-secrets-operator/vault-auth
+  # printf-style pattern; %s is replaced with each hostname. Override per spoke in 99-pipeline-values.
+  bmcCredentialsVaultPathPattern: "bmc-credentials-%s"
+
+assistedDeployment:
+  pullSecret:
+    # KV-v2 logical path (without mount); synced to pullSecretRef.name
+    vaultPath: ""
+
+templateRefs:
+  - name: example-sno-template
+    namespace: openshift-siteconfig
+
+clusterDefaults:
+  role: master
+  rootDeviceHints: {}
+
+# Physical→logical NIC mappings per node role.
+# redfishMemberMatch: substring matched against Redfish EthernetInterfaces @odata.id
+# logicalName: CoreOS logical interface name used in NMState config
+nicMappings:
+  masters:
+    - logicalName: eno1
+      redfishMemberMatch: "Embedded"
+  workers:
+    - logicalName: eno1
+      redfishMemberMatch: "NIC.1"
+
+# BMC URL for Redfish (same for all hosts or use %s for hostname token).
+bmcAddressTemplate: 'redfish-virtualmedia://192.168.20.11/redfish/v1/Systems/1'
+
+extraManifestsRefs: []
+
+extraLabels: {}
+
+extraAnnotations: {}
+
+ztpCommon:
+  enabled: true
+  namespace: ztp-common
+
+clusterValues:
+  data: {}
+
+operators: {}

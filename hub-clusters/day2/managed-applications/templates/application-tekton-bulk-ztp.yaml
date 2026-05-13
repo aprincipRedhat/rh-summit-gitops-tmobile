@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-tekton-bulk-ztp
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: cluster-automation/spoke-automation/bulk-ztp-pipeline
+    helm:
+      releaseName: tekton-bulk-ztp-pipeline
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromClusterAutomation" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  ignoreDifferences:
+    - group: tekton.dev
+      kind: Pipeline
+      jsonPointers:
+        - /spec/tasks
+        - /spec/finally
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

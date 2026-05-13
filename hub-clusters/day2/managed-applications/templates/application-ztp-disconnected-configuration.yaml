@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-ztp-disconnected-configuration
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: {{ include "managed-apps.repoURL" . | quote }}
+    targetRevision: {{ include "managed-apps.targetRevision" . | quote }}
+    path: hub-clusters/day2/applications/ztp-disconnected-configuration
+    helm:
+      releaseName: ztp-disconnected-configuration
+      valueFiles:
+        - {{ include "managed-apps.hubValuesFromDay2App" . | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-config
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

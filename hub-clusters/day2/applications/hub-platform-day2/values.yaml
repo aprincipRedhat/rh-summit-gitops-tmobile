@@ -1,0 +1,26 @@
+hubPlatform:
+  # ACM PolicyGenerator kustomize plugin image — sourced from the same RHACM release as the hub MCH.
+  # Update this tag when upgrading ACM.
+  policyGeneratorImage: registry.redhat.io/rhacm2/multicluster-operators-subscription-rhel9:v2.16.0
+  proxy:
+    enabled: false
+    httpProxy: ""
+    httpsProxy: ""
+    noProxy: ""
+  trustedCA:
+    enabled: true
+    name: user-ca-bundle
+    bundlePem: ""
+  # APIServer serving certs — TLS secrets must exist in openshift-config (tls.crt, tls.key).
+  apiServer:
+    enabled: true
+    namedCertificates: []
+    # - names:
+    #     - api.cluster.example.com
+    #   secretName: apiserver-custom-tls
+  # Default Ingress certificate — secret must exist in openshift-ingress (tls.crt, tls.key, ca.crt optional).
+  ingressController:
+    enabled: true
+    name: default
+    defaultCertificate:
+      secretName: ""

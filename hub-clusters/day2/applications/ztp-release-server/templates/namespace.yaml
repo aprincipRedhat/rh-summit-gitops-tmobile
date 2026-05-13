@@ -1,0 +1,8 @@
+{{- if dig "ztpReleaseServer" "enabled" false (fromJson (toJson .Values)) }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ dig "ztpReleaseServer" "namespace" "ztp-release-server" (fromJson (toJson .Values)) }}
+  labels:
+    app.kubernetes.io/managed-by: gitops
+{{- end }}
