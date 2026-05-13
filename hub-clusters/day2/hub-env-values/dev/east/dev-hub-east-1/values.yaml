@@ -25,6 +25,8 @@ tektonZtp:
   # images:
   #   kubeBurner: registry.example/kube-burner-runner:latest
   images: {}
+  vault:
+    secretName: vault-tekton-credentials
   pipelineRun:
     example:
       clusterName: dev-east-us-1
